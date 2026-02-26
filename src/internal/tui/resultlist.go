@@ -190,12 +190,9 @@ func (r ResultList) renderRow(item ResultItem, selected bool, width int) string 
 	content := strings.Join(parts, " ")
 
 	// For non-selected rows, ensure strict single-line by truncating.
+	// Use lipgloss MaxWidth for ANSI-safe truncation (content contains escape sequences).
 	if !selected && lipgloss.Width(content) > width {
-		runes := []rune(content)
-		for lipgloss.Width(string(runes)) > width-1 {
-			runes = runes[:len(runes)-1]
-		}
-		content = string(runes) + "\u2026"
+		content = lipgloss.NewStyle().MaxWidth(width - 1).Render(content) + "\u2026"
 	}
 
 	// Apply row-level styling.
@@ -241,7 +238,6 @@ func (r ResultList) renderPreview(sn model.Snippet, width int) string {
 
 	previewStyle := lipgloss.NewStyle().
 		Foreground(ColorTextDim).
-		Background(ColorBgSelected).
 		Width(width)
 
 	lines := strings.Split(sn.Content, "\n")
@@ -252,9 +248,9 @@ func (r ResultList) renderPreview(sn model.Snippet, width int) string {
 
 	var preview []string
 	for _, line := range lines[:maxLines] {
-		// Truncate long lines.
-		if len(line) > width {
-			line = line[:width-1] + "\u2026" // ellipsis
+		// Truncate long lines (rune-aware).
+		if runeLen := len([]rune(line)); runeLen > width {
+			line = string([]rune(line)[:width-1]) + "\u2026"
 		}
 		preview = append(preview, line)
 	}
