@@ -6,7 +6,7 @@ import (
 
 	"github.com/infktd/snipt/src/internal/db"
 	"github.com/infktd/snipt/src/internal/model"
-	"github.com/infktd/snipt/src/internal/tui"
+	"github.com/infktd/snipt/src/internal/tui/find"
 	"github.com/spf13/cobra"
 )
 
@@ -50,7 +50,7 @@ the content to stdout instead (useful for piping).`,
 			}
 
 			// Launch TUI. Clipboard copy happens inside via OSC52.
-			result, err := tui.RunFind(snippets, initialQuery, idOnly, stdout)
+			result, err := find.RunFind(snippets, initialQuery, idOnly, stdout)
 			if err != nil {
 				return fmt.Errorf("find: %w", err)
 			}

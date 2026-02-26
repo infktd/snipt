@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/infktd/snipt/src/internal/model"
-	"github.com/infktd/snipt/src/internal/tui"
+	"github.com/infktd/snipt/src/internal/tui/form"
 	"github.com/spf13/cobra"
 )
 
@@ -56,23 +56,23 @@ func newNewCmd() *cobra.Command {
 			}
 
 			// Launch the metadata form to collect title, language, tags, and description.
-			form, err := tui.RunForm(cfg.DefaultLanguage)
+			formResult, err := form.RunForm(cfg.DefaultLanguage)
 			if err != nil {
 				return fmt.Errorf("metadata form: %w", err)
 			}
 
-			if !form.Cancelled {
-				if form.Title != "" {
-					snippet.Title = form.Title
+			if !formResult.Cancelled {
+				if formResult.Title != "" {
+					snippet.Title = formResult.Title
 				}
-				if form.Language != "" {
-					snippet.Language = form.Language
+				if formResult.Language != "" {
+					snippet.Language = formResult.Language
 				}
-				if form.Description != "" {
-					snippet.Description = form.Description
+				if formResult.Description != "" {
+					snippet.Description = formResult.Description
 				}
-				if form.Tags != "" {
-					snippet.Tags = parseTags(form.Tags)
+				if formResult.Tags != "" {
+					snippet.Tags = parseTags(formResult.Tags)
 				}
 			}
 

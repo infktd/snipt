@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/infktd/snipt/src/internal/model"
-	"github.com/infktd/snipt/src/internal/tui"
+	"github.com/infktd/snipt/src/internal/tui/picker"
 	"github.com/spf13/cobra"
 )
 
@@ -42,7 +42,7 @@ func resolveSnippet(cmd *cobra.Command, ref string) (*model.Snippet, error) {
 
 	if isTTY {
 		// Launch mini-picker.
-		selected, err := tui.RunPicker(results, ref)
+		selected, err := picker.RunPicker(results, ref)
 		if err != nil {
 			return nil, fmt.Errorf("picker: %w", err)
 		}
