@@ -67,7 +67,7 @@ func NewFindModel(snippets []model.Snippet, initialQuery string, idOnly, clipOut
 	if listHeight < 3 {
 		listHeight = 3
 	}
-	m.resultList = NewResultList(findDefaultWidth-4, listHeight)
+	m.resultList = NewResultList(findDefaultWidth-6, listHeight)
 
 	// Run initial filter.
 	m.applyFilter()
@@ -95,7 +95,7 @@ func (m FindModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			listHeight = 3
 		}
 
-		m.resultList.width = panelWidth - 4
+		m.resultList.width = panelWidth - 6
 		m.resultList.height = listHeight
 		m.searchInput.SetWidth(panelWidth - 20)
 
@@ -244,7 +244,7 @@ func (m FindModel) View() tea.View {
 		panelWidth = 40
 	}
 
-	innerWidth := panelWidth - 4 // account for border padding
+	innerWidth := panelWidth - 6 // border (2) + padding 2*2 (4) = 6
 
 	// -- Header line: SNIPT badge + search input + count --
 	badge := renderBadgeGradient("SNIPT")
@@ -277,42 +277,53 @@ func (m FindModel) View() tea.View {
 	// -- Result list --
 	listView := m.resultList.View()
 
-	// -- Compose the inner content --
+	// -- Hint line (inside the border) --
+	hintStyle := lipgloss.NewStyle().Foreground(ColorTextDim)
+	hint := hintStyle.Render("\u2191\u2193 navigate  enter copy  esc close")
+
+	// -- Compose the inner content (hint inside the border) --
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		header,
 		separator,
 		listView,
+		"",
+		hint,
 	)
 
 	// -- Wrap in a rounded border --
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ColorBorder).
-		Padding(0, 1).
+		Padding(1, 2).
 		Width(panelWidth)
 
-	panel := borderStyle.Render(inner)
+	panelStr := borderStyle.Render(inner)
 
-	// -- Hint line --
-	hintStyle := lipgloss.NewStyle().Foreground(ColorTextDim)
-	hint := hintStyle.Render("  \u2191\u2193 navigate  enter copy  esc close")
-
-	// -- Center the panel --
-	full := lipgloss.JoinVertical(lipgloss.Left, panel, hint)
-
-	// Center horizontally.
-	centered := lipgloss.NewStyle().
-		Width(m.width).
-		Align(lipgloss.Center).
-		Render(full)
-
-	// Add some top padding to vertically center-ish.
-	topPad := (m.height - lipgloss.Height(centered)) / 3
-	if topPad < 0 {
-		topPad = 0
+	// -- Compositor layers --
+	// Background layer (fills terminal).
+	bgLines := make([]string, m.height)
+	for i := range bgLines {
+		bgLines[i] = strings.Repeat(" ", m.width)
 	}
+	bgStr := strings.Join(bgLines, "\n")
+	bgLayer := lipgloss.NewLayer(bgStr)
 
-	v := tea.NewView(strings.Repeat("\n", topPad) + centered)
+	// Panel layer (centered, floating).
+	panelH := lipgloss.Height(panelStr)
+	panelW := lipgloss.Width(panelStr)
+	px := (m.width - panelW) / 2
+	py := (m.height - panelH) / 3
+	if px < 0 {
+		px = 0
+	}
+	if py < 0 {
+		py = 0
+	}
+	panelLayer := lipgloss.NewLayer(panelStr).X(px).Y(py).Z(1)
+
+	output := lipgloss.NewCompositor(bgLayer, panelLayer).Render()
+
+	v := tea.NewView(output)
 	v.AltScreen = true
 	return v
 }
