@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/infktd/snipt/src/internal/clipboard"
 	"github.com/infktd/snipt/src/internal/db"
 	"github.com/infktd/snipt/src/internal/model"
 	"github.com/infktd/snipt/src/internal/tui"
@@ -13,17 +12,22 @@ import (
 
 func newFindCmd() *cobra.Command {
 	var (
-		clipOutput bool
 		langFilter string
 		tagFilter  string
 		pinned     bool
 		idOnly     bool
+		stdout     bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "find [query]",
 		Short: "Fuzzy search snippets",
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Fuzzy search snippets and copy the selected one to clipboard.
+
+By default, the selected snippet is copied to the system clipboard
+via OSC52 and the command exits silently. Use --stdout to print
+the content to stdout instead (useful for piping).`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load snippets from store with filters.
 			opts := db.ListOpts{
@@ -45,8 +49,8 @@ func newFindCmd() *cobra.Command {
 				initialQuery = args[0]
 			}
 
-			// Launch TUI.
-			result, err := tui.RunFind(snippets, initialQuery, idOnly, clipOutput)
+			// Launch TUI. Clipboard copy happens inside via OSC52.
+			result, err := tui.RunFind(snippets, initialQuery, idOnly, stdout)
 			if err != nil {
 				return fmt.Errorf("find: %w", err)
 			}
@@ -58,30 +62,27 @@ func newFindCmd() *cobra.Command {
 			// Bump use count.
 			_ = store.IncrementUseCount(result.ID)
 
-			// Output.
+			// Output based on flags.
 			if idOnly {
 				fmt.Fprintln(cmd.OutOrStdout(), result.ID)
 				return nil
 			}
 
-			if clipOutput {
-				if err := clipboard.Write(result.Content); err != nil {
-					return fmt.Errorf("copy to clipboard: %w", err)
-				}
-				fmt.Fprintf(cmd.ErrOrStderr(), "copied %s to clipboard\n", result.ID)
+			if stdout {
+				fmt.Fprint(cmd.OutOrStdout(), result.Content)
 				return nil
 			}
 
-			fmt.Fprint(cmd.OutOrStdout(), result.Content)
+			// Default: silent. Clipboard was already set by the TUI.
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVarP(&clipOutput, "clipboard", "c", false, "copy to clipboard")
 	cmd.Flags().StringVar(&langFilter, "lang", "", "filter by language")
 	cmd.Flags().StringVar(&tagFilter, "tag", "", "filter by tag")
 	cmd.Flags().BoolVar(&pinned, "pinned", false, "filter pinned only")
-	cmd.Flags().BoolVarP(&idOnly, "id", "i", false, "output ID instead of content")
+	cmd.Flags().BoolVarP(&idOnly, "id", "i", false, "output snippet ID only")
+	cmd.Flags().BoolVar(&stdout, "stdout", false, "print content to stdout instead of clipboard")
 
 	return cmd
 }
