@@ -39,10 +39,15 @@ func NewFindModel(snippets []model.Snippet, initialQuery string, idOnly, clipOut
 	ti := textinput.New()
 	ti.Placeholder = "Search snippets..."
 	ti.CharLimit = 120
-	ti.Width = findDefaultWidth - 20 // leave room for badge + count
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(ColorMauve)
-	ti.TextStyle = lipgloss.NewStyle().Foreground(ColorText)
-	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorTextMuted)
+	ti.SetWidth(findDefaultWidth - 20) // leave room for badge + count
+	styles := ti.Styles()
+	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(ColorMauve)
+	styles.Focused.Text = lipgloss.NewStyle().Foreground(ColorText)
+	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(ColorTextMuted)
+	styles.Blurred.Prompt = lipgloss.NewStyle().Foreground(ColorTextDim)
+	styles.Blurred.Text = lipgloss.NewStyle().Foreground(ColorTextDim)
+	styles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(ColorTextMuted)
+	ti.SetStyles(styles)
 	ti.Prompt = " "
 	ti.Focus()
 	if initialQuery != "" {
@@ -72,7 +77,7 @@ func NewFindModel(snippets []model.Snippet, initialQuery string, idOnly, clipOut
 }
 
 func (m FindModel) Init() tea.Cmd {
-	return textinput.Blink
+	return nil
 }
 
 func (m FindModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -93,11 +98,11 @@ func (m FindModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.resultList.width = panelWidth - 4
 		m.resultList.height = listHeight
-		m.searchInput.Width = panelWidth - 20
+		m.searchInput.SetWidth(panelWidth - 20)
 
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			m.cancelled = true
@@ -225,9 +230,11 @@ func (m *FindModel) applyFilter() {
 	m.resultList.SetItems(items)
 }
 
-func (m FindModel) View() string {
+func (m FindModel) View() tea.View {
 	if m.selected != nil || m.cancelled {
-		return ""
+		v := tea.NewView("")
+		v.AltScreen = true
+		return v
 	}
 
 	panelWidth := findDefaultWidth
@@ -252,7 +259,7 @@ func (m FindModel) View() string {
 	if searchWidth < 20 {
 		searchWidth = 20
 	}
-	m.searchInput.Width = searchWidth
+	m.searchInput.SetWidth(searchWidth)
 
 	searchView := m.searchInput.View()
 
@@ -306,13 +313,15 @@ func (m FindModel) View() string {
 		topPad = 0
 	}
 
-	return strings.Repeat("\n", topPad) + centered
+	v := tea.NewView(strings.Repeat("\n", topPad) + centered)
+	v.AltScreen = true
+	return v
 }
 
 // renderBadgeGradient renders text with a pink→mauve color gradient, one color per character.
 func renderBadgeGradient(text string) string {
 	// Pink (#f5c2e7) → Mauve (#cba6f7) gradient stops.
-	colors := []lipgloss.Color{
+	colors := []color.Color{
 		lipgloss.Color("#f5c2e7"),
 		lipgloss.Color("#e4b4ef"),
 		lipgloss.Color("#d8aaf3"),
@@ -335,7 +344,7 @@ func renderBadgeGradient(text string) string {
 // RunFind launches the find palette TUI and returns the selected snippet, or nil if cancelled.
 func RunFind(snippets []model.Snippet, initialQuery string, idOnly, clipOutput bool) (*model.Snippet, error) {
 	m := NewFindModel(snippets, initialQuery, idOnly, clipOutput)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 
 	final, err := p.Run()
 	if err != nil {
