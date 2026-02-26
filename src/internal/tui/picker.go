@@ -86,7 +86,7 @@ func (m PickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
 			m.cancelled = true
@@ -109,9 +109,11 @@ func (m PickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m PickerModel) View() string {
+func (m PickerModel) View() tea.View {
 	if m.selected != nil || m.cancelled {
-		return ""
+		v := tea.NewView("")
+		v.AltScreen = true
+		return v
 	}
 
 	panelWidth := pickerDefaultWidth
@@ -180,13 +182,15 @@ func (m PickerModel) View() string {
 		topPad = 0
 	}
 
-	return strings.Repeat("\n", topPad) + centered
+	v := tea.NewView(strings.Repeat("\n", topPad) + centered)
+	v.AltScreen = true
+	return v
 }
 
 // RunPicker launches the mini-picker TUI and returns the selected snippet, or nil if cancelled.
 func RunPicker(results []model.SearchResult, ref string) (*model.Snippet, error) {
 	m := NewPickerModel(results, ref)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 
 	final, err := p.Run()
 	if err != nil {
