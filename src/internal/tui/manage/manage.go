@@ -2,6 +2,8 @@ package manage
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -39,6 +41,9 @@ type ManageModel struct {
 	mode           mode
 	quitting       bool
 	copiedFeedback bool
+
+	editingID   string // ID of snippet being edited (empty for new)
+	editTmpPath string // path to temp file being edited
 }
 
 // NewManageModel creates a new manage screen model.
@@ -101,6 +106,11 @@ func (m ManageModel) Init() tea.Cmd {
 
 // copiedMsg signals that the "Copied!" feedback timer has elapsed.
 type copiedMsg struct{}
+
+// editorFinishedMsg signals that the external editor has exited.
+type editorFinishedMsg struct {
+	err error
+}
 
 func (m ManageModel) clearCopiedAfter() tea.Cmd {
 	return tea.Tick(2*time.Second, func(time.Time) tea.Msg {
@@ -188,11 +198,185 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "down", "ctrl+n", "up", "ctrl+p":
 				m.resultList, _ = m.resultList.Update(msg)
 				return m, nil
+			case "e":
+				if sel := m.resultList.Selected(); sel != nil {
+					sn := sel.Snippet
+					m.editingID = sn.ID
+					tmpPath, err := writeFrontmatterFile(sn)
+					if err != nil {
+						return m, nil
+					}
+					m.editTmpPath = tmpPath
+					parts := strings.Fields(m.editor)
+					cmd := exec.Command(parts[0], append(parts[1:], tmpPath)...)
+					return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+						return editorFinishedMsg{err: err}
+					})
+				}
+				return m, nil
+			case "n":
+				m.editingID = "" // empty means create new
+				tmpPath, err := writeFrontmatterFile(model.Snippet{
+					Language: "text",
+				})
+				if err != nil {
+					return m, nil
+				}
+				m.editTmpPath = tmpPath
+				parts := strings.Fields(m.editor)
+				cmd := exec.Command(parts[0], append(parts[1:], tmpPath)...)
+				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+					return editorFinishedMsg{err: err}
+				})
 			}
 		}
+
+	case editorFinishedMsg:
+		defer os.Remove(m.editTmpPath)
+
+		if msg.err != nil {
+			m.editTmpPath = ""
+			return m, nil
+		}
+
+		data, err := os.ReadFile(m.editTmpPath)
+		if err != nil {
+			m.editTmpPath = ""
+			return m, nil
+		}
+		m.editTmpPath = ""
+
+		content := string(data)
+		if strings.TrimSpace(content) == "" {
+			return m, nil
+		}
+
+		title, language, tags, pinned, body := parseFrontmatter(content)
+
+		if m.editingID == "" {
+			// Creating new snippet.
+			sn := &model.Snippet{
+				ID:       model.NewID(),
+				Title:    title,
+				Language: language,
+				Tags:     tags,
+				Pinned:   pinned,
+				Content:  body,
+			}
+			m.store.Create(sn)
+		} else {
+			// Updating existing snippet.
+			sn, err := m.store.Get(m.editingID)
+			if err != nil {
+				return m, nil
+			}
+			sn.Title = title
+			sn.Language = language
+			sn.Content = body
+			sn.Pinned = pinned
+			m.store.Update(sn)
+			// Update tags: remove old, add new.
+			m.store.RemoveTags(sn.ID, sn.Tags)
+			m.store.AddTags(sn.ID, tags)
+		}
+
+		m.editingID = ""
+		m.reloadSnippets()
+		return m, nil
 	}
 
 	return m, nil
+}
+
+// ---------------------------------------------------------------------------
+// Editor helpers
+// ---------------------------------------------------------------------------
+
+// writeFrontmatterFile writes a snippet to a temporary file with YAML frontmatter.
+func writeFrontmatterFile(sn model.Snippet) (string, error) {
+	f, err := os.CreateTemp("", "snipt-*.md")
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Fprintf(f, "---\n")
+	fmt.Fprintf(f, "title: %s\n", sn.Title)
+	fmt.Fprintf(f, "language: %s\n", sn.Language)
+
+	if len(sn.Tags) > 0 {
+		fmt.Fprintf(f, "tags: [%s]\n", strings.Join(sn.Tags, ", "))
+	} else {
+		fmt.Fprintf(f, "tags: []\n")
+	}
+
+	fmt.Fprintf(f, "pinned: %v\n", sn.Pinned)
+	fmt.Fprintf(f, "---\n\n")
+	fmt.Fprintf(f, "%s", sn.Content)
+
+	f.Close()
+	return f.Name(), nil
+}
+
+// parseFrontmatter extracts title, language, tags, pinned flag, and body
+// from a file that uses YAML frontmatter delimited by --- markers.
+func parseFrontmatter(content string) (title, language string, tags []string, pinned bool, body string) {
+	lines := strings.Split(content, "\n")
+
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "---" {
+		return "", "", nil, false, content
+	}
+
+	closingIdx := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			closingIdx = i
+			break
+		}
+	}
+
+	if closingIdx == -1 {
+		return "", "", nil, false, content
+	}
+
+	for _, line := range lines[1:closingIdx] {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "title:") {
+			title = strings.TrimSpace(strings.TrimPrefix(line, "title:"))
+		} else if strings.HasPrefix(line, "language:") {
+			language = strings.TrimSpace(strings.TrimPrefix(line, "language:"))
+		} else if strings.HasPrefix(line, "tags:") {
+			tagStr := strings.TrimSpace(strings.TrimPrefix(line, "tags:"))
+			tagStr = strings.TrimPrefix(tagStr, "[")
+			tagStr = strings.TrimSuffix(tagStr, "]")
+			for _, t := range strings.Split(tagStr, ",") {
+				t = strings.TrimSpace(t)
+				if t != "" {
+					tags = append(tags, t)
+				}
+			}
+		} else if strings.HasPrefix(line, "pinned:") {
+			val := strings.TrimSpace(strings.TrimPrefix(line, "pinned:"))
+			pinned = val == "true"
+		}
+	}
+
+	bodyLines := lines[closingIdx+1:]
+	if len(bodyLines) > 0 && strings.TrimSpace(bodyLines[0]) == "" {
+		bodyLines = bodyLines[1:]
+	}
+	body = strings.Join(bodyLines, "\n")
+
+	return
+}
+
+// reloadSnippets refreshes the snippet list from the store and re-applies the current filter.
+func (m *ManageModel) reloadSnippets() {
+	snippets, err := m.store.List(db.ListOpts{})
+	if err != nil {
+		return
+	}
+	m.allSnippets = snippets
+	m.applyFilter()
 }
 
 // applyFilter fuzzy-matches the current query against all snippets and updates the result list.
