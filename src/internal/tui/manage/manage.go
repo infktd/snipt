@@ -44,6 +44,8 @@ type ManageModel struct {
 
 	editingID   string // ID of snippet being edited (empty for new)
 	editTmpPath string // path to temp file being edited
+
+	deleteTarget model.Snippet // snippet targeted for deletion
 }
 
 // NewManageModel creates a new manage screen model.
@@ -170,6 +172,22 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+		if m.mode == modeConfirmDelete {
+			switch msg.String() {
+			case "y":
+				_ = m.store.Delete(m.deleteTarget.ID)
+				m.deleteTarget = model.Snippet{}
+				m.mode = modeNormal
+				m.reloadSnippets()
+				return m, nil
+			default:
+				// Any other key cancels.
+				m.deleteTarget = model.Snippet{}
+				m.mode = modeNormal
+				return m, nil
+			}
+		}
+
 		if m.mode == modeNormal {
 			switch msg.String() {
 			case "q", "ctrl+c":
@@ -228,6 +246,19 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 					return editorFinishedMsg{err: err}
 				})
+			case "d":
+				if sel := m.resultList.Selected(); sel != nil {
+					m.mode = modeConfirmDelete
+					m.deleteTarget = sel.Snippet
+				}
+				return m, nil
+			case "p":
+				if sel := m.resultList.Selected(); sel != nil {
+					newPinned := !sel.Snippet.Pinned
+					_ = m.store.SetPinned(sel.Snippet.ID, newPinned)
+					m.reloadSnippets()
+				}
+				return m, nil
 			}
 		}
 
@@ -869,40 +900,56 @@ func (m ManageModel) renderStatusBar() string {
 		Foreground(common.ColorTextDim).
 		Background(common.ColorBgOverlay)
 
-	var hints []struct{ key, desc string }
-	if m.mode == modeSearch {
-		hints = []struct{ key, desc string }{
-			{"esc", "clear"},
-			{"\u2191\u2193", "navigate"},
-			{"enter", "confirm"},
+	var content string
+
+	if m.mode == modeConfirmDelete {
+		title := m.deleteTarget.Title
+		if len(title) > 30 {
+			title = title[:27] + "..."
 		}
-	} else {
-		hints = []struct{ key, desc string }{
-			{"\u2191\u2193/jk", "navigate"},
-			{"enter", "copy"},
-			{"/", "search"},
-			{"n", "new"},
-			{"e", "edit"},
-			{"d", "delete"},
-			{"p", "pin"},
-			{"q", "quit"},
-		}
-	}
-
-	var parts []string
-	for _, h := range hints {
-		parts = append(parts, keyStyle.Render(h.key)+" "+descStyle.Render(h.desc))
-	}
-
-	content := "  " + strings.Join(parts, descStyle.Render("  "))
-
-	if m.copiedFeedback {
-		feedback := lipgloss.NewStyle().
-			Foreground(common.ColorGreen).
+		confirmMsg := lipgloss.NewStyle().
+			Foreground(common.ColorRed).
 			Background(common.ColorBgOverlay).
 			Bold(true).
-			Render("Copied!")
-		content = "  " + feedback + descStyle.Render("  ") + content
+			Render(fmt.Sprintf("delete \"%s\"?", title))
+		hintMsg := descStyle.Render(" y to confirm, any other key to cancel")
+		content = "  " + confirmMsg + hintMsg
+	} else {
+		var hints []struct{ key, desc string }
+		if m.mode == modeSearch {
+			hints = []struct{ key, desc string }{
+				{"esc", "clear"},
+				{"\u2191\u2193", "navigate"},
+				{"enter", "confirm"},
+			}
+		} else {
+			hints = []struct{ key, desc string }{
+				{"\u2191\u2193/jk", "navigate"},
+				{"enter", "copy"},
+				{"/", "search"},
+				{"n", "new"},
+				{"e", "edit"},
+				{"d", "delete"},
+				{"p", "pin"},
+				{"q", "quit"},
+			}
+		}
+
+		var parts []string
+		for _, h := range hints {
+			parts = append(parts, keyStyle.Render(h.key)+" "+descStyle.Render(h.desc))
+		}
+
+		content = "  " + strings.Join(parts, descStyle.Render("  "))
+
+		if m.copiedFeedback {
+			feedback := lipgloss.NewStyle().
+				Foreground(common.ColorGreen).
+				Background(common.ColorBgOverlay).
+				Bold(true).
+				Render("Copied!")
+			content = "  " + feedback + descStyle.Render("  ") + content
+		}
 	}
 
 	barStyle := lipgloss.NewStyle().
