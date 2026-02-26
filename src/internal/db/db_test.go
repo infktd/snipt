@@ -432,3 +432,147 @@ func TestStats(t *testing.T) {
 		t.Errorf("RecentlyAdded count = %d, want 3", len(stats.RecentlyAdded))
 	}
 }
+
+// --- Task 7 tests ---
+
+// seedSnippets creates 3 test snippets for search tests and returns the store.
+func seedSnippets(t *testing.T) *Store {
+	t.Helper()
+	store := openTestStore(t)
+
+	snippets := []*model.Snippet{
+		makeSnippet("srch0001", "HTTP Server", "package main\nimport \"net/http\"\nfunc main() { http.ListenAndServe(\":8080\", nil) }", "go", []string{"web", "server"}),
+		makeSnippet("srch0002", "Python Flask App", "from flask import Flask\napp = Flask(__name__)", "python", []string{"web", "flask"}),
+		makeSnippet("srch0003", "Bash Backup Script", "#!/bin/bash\ntar -czf backup.tar.gz /data", "bash", []string{"ops", "backup"}),
+	}
+
+	for i, sn := range snippets {
+		sn.CreatedAt = time.Now().UTC().Add(time.Duration(i) * time.Second)
+		sn.UpdatedAt = sn.CreatedAt
+		if err := store.Create(sn); err != nil {
+			t.Fatalf("seed Create(%q) error: %v", sn.ID, err)
+		}
+	}
+
+	return store
+}
+
+func TestSearch(t *testing.T) {
+	store := seedSnippets(t)
+
+	results, err := store.Search("http server")
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("Search() returned 0 results, want at least 1")
+	}
+
+	// The top result should be the HTTP Server snippet.
+	top := results[0]
+	if top.Snippet.ID != "srch0001" {
+		t.Errorf("top result ID = %q, want %q", top.Snippet.ID, "srch0001")
+	}
+	if top.Score <= 0 {
+		t.Errorf("score = %f, want > 0", top.Score)
+	}
+}
+
+func TestResolveRef_ExactID(t *testing.T) {
+	store := seedSnippets(t)
+
+	results, err := store.ResolveRef("srch0002")
+	if err != nil {
+		t.Fatalf("ResolveRef() error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results count = %d, want 1", len(results))
+	}
+	if results[0].Snippet.ID != "srch0002" {
+		t.Errorf("ID = %q, want %q", results[0].Snippet.ID, "srch0002")
+	}
+	if results[0].Score != 1.0 {
+		t.Errorf("score = %f, want 1.0 (exact ID match)", results[0].Score)
+	}
+}
+
+func TestResolveRef_ExactTitle(t *testing.T) {
+	store := seedSnippets(t)
+
+	// Case-insensitive title match.
+	results, err := store.ResolveRef("http server")
+	if err != nil {
+		t.Fatalf("ResolveRef() error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results count = %d, want 1", len(results))
+	}
+	if results[0].Snippet.ID != "srch0001" {
+		t.Errorf("ID = %q, want %q", results[0].Snippet.ID, "srch0001")
+	}
+	if results[0].Score != 0.9 {
+		t.Errorf("score = %f, want 0.9 (exact title match)", results[0].Score)
+	}
+}
+
+func TestResolveRef_NoMatch(t *testing.T) {
+	store := seedSnippets(t)
+
+	results, err := store.ResolveRef("zzz_nonexistent_zzz")
+	if err != nil {
+		t.Fatalf("ResolveRef() error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("results count = %d, want 0", len(results))
+	}
+}
+
+func TestGetAndTrack(t *testing.T) {
+	store := seedSnippets(t)
+
+	// Verify initial use_count is 0.
+	before, err := store.Get("srch0001")
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
+	if before.UseCount != 0 {
+		t.Fatalf("initial UseCount = %d, want 0", before.UseCount)
+	}
+
+	// GetAndTrack should resolve and bump use_count.
+	got, err := store.GetAndTrack("HTTP Server")
+	if err != nil {
+		t.Fatalf("GetAndTrack() error: %v", err)
+	}
+	if got.ID != "srch0001" {
+		t.Errorf("ID = %q, want %q", got.ID, "srch0001")
+	}
+	if got.UseCount != 1 {
+		t.Errorf("UseCount = %d, want 1", got.UseCount)
+	}
+
+	// Call again -- use_count should increment again.
+	got2, err := store.GetAndTrack("srch0001")
+	if err != nil {
+		t.Fatalf("GetAndTrack() second call error: %v", err)
+	}
+	if got2.UseCount != 2 {
+		t.Errorf("UseCount = %d, want 2", got2.UseCount)
+	}
+}
+
+func TestGetAndTrack_NotFound(t *testing.T) {
+	store := seedSnippets(t)
+
+	_, err := store.GetAndTrack("zzz_nonexistent_zzz")
+	if err == nil {
+		t.Fatal("GetAndTrack() expected error for nonexistent ref, got nil")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("error type = %T, want *NotFoundError", err)
+	}
+	nfe := err.(*NotFoundError)
+	if nfe.Ref != "zzz_nonexistent_zzz" {
+		t.Errorf("NotFoundError.Ref = %q, want %q", nfe.Ref, "zzz_nonexistent_zzz")
+	}
+}
