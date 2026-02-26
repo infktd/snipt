@@ -1,0 +1,21 @@
+version: 2
+project_name: snipt
+
+builds:
+  - main: ./src/cmd/snipt
+    binary: snipt
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+changelog:
+  sort: asc
