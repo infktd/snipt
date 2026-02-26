@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -42,14 +43,30 @@ type ManageModel struct {
 	quitting       bool
 	copiedFeedback bool
 
-	editingID   string // ID of snippet being edited (empty for new)
-	editTmpPath string // path to temp file being edited
+	editingID       string // ID of snippet being edited (empty for new)
+	editTmpPath     string // path to temp file being edited
+	editOrigContent string // original content written to temp file, for unchanged detection
 
 	deleteTarget model.Snippet // snippet targeted for deletion
 }
 
+// cleanStaleTempFiles removes any leftover snipt-*.md temp files from previous
+// sessions that were interrupted before cleanup could run.
+func cleanStaleTempFiles() {
+	pattern := filepath.Join(os.TempDir(), "snipt-*.md")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return
+	}
+	for _, f := range matches {
+		os.Remove(f)
+	}
+}
+
 // NewManageModel creates a new manage screen model.
 func NewManageModel(store *db.Store, editor string) (ManageModel, error) {
+	cleanStaleTempFiles()
+
 	snippets, err := store.List(db.ListOpts{})
 	if err != nil {
 		return ManageModel{}, fmt.Errorf("load snippets: %w", err)
@@ -74,8 +91,13 @@ func NewManageModel(store *db.Store, editor string) (ManageModel, error) {
 	rl.SetItems(items)
 
 	// Initialize search textinput (starts blurred).
+	// NOTE: Placeholder is a single space, not the real placeholder text.
+	// Bubbles v2's virtual cursor renders the first placeholder character
+	// as a styled cursor glyph — using a space makes that invisible while
+	// still getting a real blinking cursor. We render the visible
+	// placeholder text ("Search snippets...") ourselves in renderHeader().
 	ti := textinput.New()
-	ti.Placeholder = "Search snippets..."
+	ti.Placeholder = " "
 	ti.CharLimit = 120
 
 	styles := ti.Styles()
@@ -198,8 +220,8 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case "/":
 				m.mode = modeSearch
-				m.searchInput.Focus()
-				return m, nil
+				cmd := m.searchInput.Focus()
+				return m, cmd
 			case "enter":
 				if sel := m.resultList.Selected(); sel != nil {
 					m.copiedFeedback = true
@@ -223,11 +245,12 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if sel := m.resultList.Selected(); sel != nil {
 					sn := sel.Snippet
 					m.editingID = sn.ID
-					tmpPath, err := writeFrontmatterFile(sn)
+					tmpPath, origContent, err := writeFrontmatterFile(sn)
 					if err != nil {
 						return m, nil
 					}
 					m.editTmpPath = tmpPath
+					m.editOrigContent = origContent
 					cmd := editorCommand(m.editor, tmpPath)
 					if cmd == nil {
 						os.Remove(tmpPath)
@@ -240,13 +263,14 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "n":
 				m.editingID = "" // empty means create new
-				tmpPath, err := writeFrontmatterFile(model.Snippet{
+				tmpPath, origContent, err := writeFrontmatterFile(model.Snippet{
 					Language: "text",
 				})
 				if err != nil {
 					return m, nil
 				}
 				m.editTmpPath = tmpPath
+				m.editOrigContent = origContent
 				cmd := editorCommand(m.editor, tmpPath)
 				if cmd == nil {
 					os.Remove(tmpPath)
@@ -273,6 +297,8 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case editorFinishedMsg:
 		defer os.Remove(m.editTmpPath)
+		origContent := m.editOrigContent
+		m.editOrigContent = ""
 
 		if msg.err != nil {
 			m.editTmpPath = ""
@@ -287,11 +313,22 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editTmpPath = ""
 
 		content := string(data)
+
+		// Discard if file is empty or unchanged from the template we wrote.
 		if strings.TrimSpace(content) == "" {
+			return m, nil
+		}
+		if strings.TrimSpace(content) == strings.TrimSpace(origContent) {
 			return m, nil
 		}
 
 		title, language, tags, pinned, body := parseFrontmatter(content)
+
+		// Reject if both title and body are empty — the user saved the
+		// frontmatter skeleton without adding real content.
+		if strings.TrimSpace(title) == "" && strings.TrimSpace(body) == "" {
+			return m, nil
+		}
 
 		if m.editingID == "" {
 			// Creating new snippet.
@@ -303,21 +340,26 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Pinned:   pinned,
 				Content:  body,
 			}
-			m.store.Create(sn)
+			if err := m.store.Create(sn); err != nil {
+				return m, nil
+			}
 		} else {
 			// Updating existing snippet.
 			sn, err := m.store.Get(m.editingID)
 			if err != nil {
 				return m, nil
 			}
+			oldTags := sn.Tags
 			sn.Title = title
 			sn.Language = language
 			sn.Content = body
 			sn.Pinned = pinned
-			m.store.Update(sn)
+			if err := m.store.Update(sn); err != nil {
+				return m, nil
+			}
 			// Update tags: remove old, add new.
-			m.store.RemoveTags(sn.ID, sn.Tags)
-			m.store.AddTags(sn.ID, tags)
+			_ = m.store.RemoveTags(sn.ID, oldTags)
+			_ = m.store.AddTags(sn.ID, tags)
 		}
 
 		m.editingID = ""
@@ -333,28 +375,33 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // ---------------------------------------------------------------------------
 
 // writeFrontmatterFile writes a snippet to a temporary file with YAML frontmatter.
-func writeFrontmatterFile(sn model.Snippet) (string, error) {
+// Returns the temp file path and the content written (for unchanged detection).
+func writeFrontmatterFile(sn model.Snippet) (path, content string, err error) {
 	f, err := os.CreateTemp("", "snipt-*.md")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	fmt.Fprintf(f, "---\n")
-	fmt.Fprintf(f, "title: %s\n", sn.Title)
-	fmt.Fprintf(f, "language: %s\n", sn.Language)
+	var b strings.Builder
+	fmt.Fprintf(&b, "---\n")
+	fmt.Fprintf(&b, "title: %s\n", sn.Title)
+	fmt.Fprintf(&b, "language: %s\n", sn.Language)
 
 	if len(sn.Tags) > 0 {
-		fmt.Fprintf(f, "tags: [%s]\n", strings.Join(sn.Tags, ", "))
+		fmt.Fprintf(&b, "tags: [%s]\n", strings.Join(sn.Tags, ", "))
 	} else {
-		fmt.Fprintf(f, "tags: []\n")
+		fmt.Fprintf(&b, "tags: []\n")
 	}
 
-	fmt.Fprintf(f, "pinned: %v\n", sn.Pinned)
-	fmt.Fprintf(f, "---\n\n")
-	fmt.Fprintf(f, "%s", sn.Content)
+	fmt.Fprintf(&b, "pinned: %v\n", sn.Pinned)
+	fmt.Fprintf(&b, "---\n\n")
+	fmt.Fprintf(&b, "%s", sn.Content)
+
+	content = b.String()
+	fmt.Fprint(f, content)
 
 	f.Close()
-	return f.Name(), nil
+	return f.Name(), content, nil
 }
 
 // parseFrontmatter extracts title, language, tags, pinned flag, and body
@@ -419,13 +466,44 @@ func (m *ManageModel) reloadSnippets() {
 	m.applyFilter()
 }
 
+// editorsNeedingWait lists GUI editor base names that return immediately
+// unless a --wait / -w flag is passed. When we detect one of these we
+// inject --wait so tea.ExecProcess blocks until the user closes the file.
+var editorsNeedingWait = map[string]string{
+	"zed":    "--wait",
+	"code":   "--wait",
+	"subl":   "--wait",
+	"mate":   "--wait",
+	"atom":   "--wait",
+	"gedit":  "--wait",
+	"codium": "--wait",
+}
+
 // editorCommand builds an exec.Cmd for the configured editor. Returns nil if
 // the editor string is empty (prevents index-out-of-range panic).
+// For GUI editors that return immediately, it injects a --wait flag so the
+// process blocks until the user closes the file.
 func editorCommand(editor, filePath string) *exec.Cmd {
 	parts := strings.Fields(editor)
 	if len(parts) == 0 {
 		return nil
 	}
+
+	base := filepath.Base(parts[0])
+	if waitFlag, ok := editorsNeedingWait[base]; ok {
+		// Only inject if the user hasn't already specified a wait flag.
+		hasWait := false
+		for _, arg := range parts[1:] {
+			if arg == "--wait" || arg == "-w" {
+				hasWait = true
+				break
+			}
+		}
+		if !hasWait {
+			parts = append(parts[:1], append([]string{waitFlag}, parts[1:]...)...)
+		}
+	}
+
 	return exec.Command(parts[0], append(parts[1:], filePath)...)
 }
 
@@ -572,6 +650,8 @@ func (m *ManageModel) applyFilter() {
 }
 
 
+const hPad = 1 // 1-char horizontal padding on each side for breathing room
+
 func (m ManageModel) View() tea.View {
 	if m.quitting {
 		v := tea.NewView("")
@@ -585,12 +665,33 @@ func (m ManageModel) View() tea.View {
 		return v
 	}
 
-	header := m.renderHeader()
-	sepLine := m.renderHorizontalRule()
-	content := m.renderContent()
-	statusBar := m.renderStatusBar()
+	usable := m.width - 2*hPad
 
-	screen := header + "\n" + sepLine + "\n" + content + "\n" + sepLine + "\n" + statusBar
+	header := m.renderHeader(usable)
+	sepLine := m.renderHorizontalRule(usable)
+	content := m.renderContent(usable)
+	statusBar := m.renderStatusBar(usable)
+
+	padL := lipgloss.NewStyle().Width(hPad).Background(common.ColorBg).Render("")
+
+	var rows []string
+	// Header uses surface bg for its padding.
+	hdrPadL := lipgloss.NewStyle().Width(hPad).Background(common.ColorBgSurface).Render("")
+	rows = append(rows, hdrPadL+header+lipgloss.NewStyle().Width(hPad).Background(common.ColorBgSurface).Render(""))
+	rows = append(rows, padL+sepLine+lipgloss.NewStyle().Width(hPad).Background(common.ColorBg).Render(""))
+
+	// Content rows already contain newlines; split and pad each.
+	for _, line := range strings.Split(content, "\n") {
+		rows = append(rows, padL+line+lipgloss.NewStyle().Width(hPad).Background(common.ColorBg).Render(""))
+	}
+
+	rows = append(rows, padL+sepLine+lipgloss.NewStyle().Width(hPad).Background(common.ColorBg).Render(""))
+
+	// Status bar uses mauve bg for its padding.
+	sbPadL := lipgloss.NewStyle().Width(hPad).Background(common.ColorMauve).Render("")
+	rows = append(rows, sbPadL+statusBar+lipgloss.NewStyle().Width(hPad).Background(common.ColorMauve).Render(""))
+
+	screen := strings.Join(rows, "\n")
 
 	v := tea.NewView(screen)
 	v.AltScreen = true
@@ -601,11 +702,38 @@ func (m ManageModel) View() tea.View {
 // Header
 // ---------------------------------------------------------------------------
 
-func (m ManageModel) renderHeader() string {
+func (m ManageModel) renderHeader(w int) string {
 	badge := common.RenderBadgePill("SNIPT")
 	gap := lipgloss.NewStyle().Width(2).Background(common.ColorBgSurface).Render("")
 
-	searchView := m.searchInput.View()
+	// Render search input. The textinput's Placeholder is set to " " (space)
+	// so the virtual cursor renders an invisible character — avoiding the
+	// Bubbles v2 bug where the first placeholder char appears as a stray
+	// glyph. We append our own visible placeholder text when empty.
+	var searchView string
+	if m.mode == modeSearch {
+		// Focused: use View() for the real blinking cursor + any typed text.
+		searchView = m.searchInput.View()
+		if m.searchInput.Value() == "" {
+			// Append visible placeholder after the cursor.
+			searchView += lipgloss.NewStyle().
+				Foreground(common.ColorTextDim).
+				Background(common.ColorBgSurface).
+				Render("Search snippets...")
+		}
+	} else if v := m.searchInput.Value(); v != "" {
+		// Blurred with active filter: show the value.
+		searchView = lipgloss.NewStyle().
+			Foreground(common.ColorTextDim).
+			Background(common.ColorBgSurface).
+			Render(" " + v)
+	} else {
+		// Blurred and empty: dim placeholder.
+		searchView = lipgloss.NewStyle().
+			Foreground(common.ColorTextDim).
+			Background(common.ColorBgSurface).
+			Render(" Search snippets...")
+	}
 
 	countStr := fmt.Sprintf("%d/%d", len(m.filtered), len(m.allSnippets))
 	count := lipgloss.NewStyle().
@@ -616,7 +744,7 @@ func (m ManageModel) renderHeader() string {
 	left := badge + gap + searchView
 	leftWidth := lipgloss.Width(left)
 	rightWidth := lipgloss.Width(count)
-	fillerWidth := m.width - leftWidth - rightWidth
+	fillerWidth := w - leftWidth - rightWidth
 	if fillerWidth < 1 {
 		fillerWidth = 1
 	}
@@ -625,19 +753,19 @@ func (m ManageModel) renderHeader() string {
 	row := left + filler + count
 
 	return lipgloss.NewStyle().
-		Width(m.width).
-		MaxWidth(m.width).
+		Width(w).
+		MaxWidth(w).
 		Background(common.ColorBgSurface).
 		Render(row)
 }
 
-func (m ManageModel) renderHorizontalRule() string {
-	rule := strings.Repeat("\u2500", m.width)
+func (m ManageModel) renderHorizontalRule(w int) string {
+	rule := strings.Repeat("\u2500", w)
 	return lipgloss.NewStyle().
 		Foreground(common.ColorBorderDim).
 		Background(common.ColorBg).
-		Width(m.width).
-		MaxWidth(m.width).
+		Width(w).
+		MaxWidth(w).
 		Render(rule)
 }
 
@@ -645,20 +773,20 @@ func (m ManageModel) renderHorizontalRule() string {
 // Content: sidebar + border + preview
 // ---------------------------------------------------------------------------
 
-func (m ManageModel) renderContent() string {
+func (m ManageModel) renderContent(w int) string {
 	contentHeight := m.height - 4 // header + 2 separators + status bar
 	if contentHeight < 1 {
 		contentHeight = 1
 	}
 
-	sidebarWidth := m.width * 30 / 100
+	sidebarWidth := w * 30 / 100
 	if sidebarWidth < 25 {
 		sidebarWidth = 25
 	}
 	if sidebarWidth > 40 {
 		sidebarWidth = 40
 	}
-	previewWidth := m.width - sidebarWidth - 1 // 1 for vertical separator
+	previewWidth := w - sidebarWidth - 1 // 1 for vertical separator
 	if previewWidth < 10 {
 		previewWidth = 10
 	}
@@ -678,11 +806,11 @@ func (m ManageModel) renderContent() string {
 
 		row := sLine + borderChar + pLine
 
-		// Safety: pad or trim to exact terminal width.
-		if rowW := lipgloss.Width(row); rowW < m.width {
-			row += lipgloss.NewStyle().Width(m.width - rowW).Background(common.ColorBg).Render("")
-		} else if rowW > m.width {
-			row = lipgloss.NewStyle().MaxWidth(m.width).Render(row)
+		// Safety: pad or trim to exact usable width.
+		if rowW := lipgloss.Width(row); rowW < w {
+			row += lipgloss.NewStyle().Width(w - rowW).Background(common.ColorBg).Render("")
+		} else if rowW > w {
+			row = lipgloss.NewStyle().MaxWidth(w).Render(row)
 		}
 
 		rows = append(rows, row)
@@ -1017,7 +1145,7 @@ func (m ManageModel) renderPreviewLines(width, height int) []string {
 // Status bar
 // ---------------------------------------------------------------------------
 
-func (m ManageModel) renderStatusBar() string {
+func (m ManageModel) renderStatusBar(w int) string {
 	barBg := common.ColorMauve
 	textColor := common.ColorBg
 
@@ -1036,8 +1164,8 @@ func (m ManageModel) renderStatusBar() string {
 			boldStyle.Render("any key") + normalStyle.Render(" cancel")
 
 		return lipgloss.NewStyle().
-			Width(m.width).
-			MaxWidth(m.width).
+			Width(w).
+			MaxWidth(w).
 			Background(barBg).
 			Render(content)
 	}
@@ -1093,7 +1221,7 @@ func (m ManageModel) renderStatusBar() string {
 
 	leftW := lipgloss.Width(left)
 	rightW := lipgloss.Width(right)
-	spacerW := m.width - leftW - rightW
+	spacerW := w - leftW - rightW
 	if spacerW < 1 {
 		spacerW = 1
 	}
@@ -1102,8 +1230,8 @@ func (m ManageModel) renderStatusBar() string {
 	row := left + spacer + right
 
 	return lipgloss.NewStyle().
-		Width(m.width).
-		MaxWidth(m.width).
+		Width(w).
+		MaxWidth(w).
 		Background(barBg).
 		Render(row)
 }
