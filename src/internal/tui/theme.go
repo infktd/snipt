@@ -35,7 +35,7 @@ var (
 )
 
 // LanguageColor returns the theme color for a given language.
-func LanguageColor(lang string) lipgloss.Color {
+func LanguageColor(lang string) color.Color {
 	switch lang {
 	case "go":
 		return ColorSky
