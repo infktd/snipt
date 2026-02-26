@@ -649,7 +649,6 @@ func (m *ManageModel) applyFilter() {
 	m.resultList.SetItems(items)
 }
 
-
 const hPad = 1 // 1-char horizontal padding on each side for breathing room
 
 func (m ManageModel) View() tea.View {
