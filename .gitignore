@@ -1,0 +1,6 @@
+# Binary
+snipt
+/dist/
+
+# OS
+.DS_Store

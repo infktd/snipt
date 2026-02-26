@@ -18,8 +18,8 @@ const (
 // It reuses ResultList for rendering and navigation.
 type PickerModel struct {
 	resultList ResultList
-	ref        string          // the original reference string
-	selected   *model.Snippet  // final selection (nil if cancelled)
+	ref        string         // the original reference string
+	selected   *model.Snippet // final selection (nil if cancelled)
 	cancelled  bool
 	width      int
 	height     int
