@@ -5,9 +5,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"image/color"
+
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/infktd/snipt/src/internal/model"
 )
 
@@ -239,10 +241,7 @@ func (m FindModel) View() string {
 	innerWidth := panelWidth - 4 // account for border padding
 
 	// -- Header line: SNIPT badge + search input + count --
-	badgeStyle := lipgloss.NewStyle().
-		Foreground(ColorPink).
-		Bold(true)
-	badge := badgeStyle.Render("SNIPT")
+	badge := renderBadgeGradient("SNIPT")
 
 	countStr := fmt.Sprintf("%d/%d", len(m.filtered), len(m.allSnippets))
 	countStyle := lipgloss.NewStyle().Foreground(ColorTextDim)
@@ -308,6 +307,29 @@ func (m FindModel) View() string {
 	}
 
 	return strings.Repeat("\n", topPad) + centered
+}
+
+// renderBadgeGradient renders text with a pink→mauve color gradient, one color per character.
+func renderBadgeGradient(text string) string {
+	// Pink (#f5c2e7) → Mauve (#cba6f7) gradient stops.
+	colors := []lipgloss.Color{
+		lipgloss.Color("#f5c2e7"),
+		lipgloss.Color("#e4b4ef"),
+		lipgloss.Color("#d8aaf3"),
+		lipgloss.Color("#cba6f7"),
+		lipgloss.Color("#c4a2f9"),
+	}
+
+	var out strings.Builder
+	for i, ch := range text {
+		ci := i
+		if ci >= len(colors) {
+			ci = len(colors) - 1
+		}
+		s := lipgloss.NewStyle().Foreground(colors[ci]).Bold(true)
+		out.WriteString(s.Render(string(ch)))
+	}
+	return out.String()
 }
 
 // RunFind launches the find palette TUI and returns the selected snippet, or nil if cancelled.

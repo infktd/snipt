@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/infktd/snipt/src/internal/model"
 )
 
@@ -145,7 +145,7 @@ func (r ResultList) renderRow(item ResultItem, selected bool, width int) string 
 
 	// Pinned indicator.
 	if sn.Pinned {
-		pinStyle := lipgloss.NewStyle().Foreground(ColorPeach)
+		pinStyle := lipgloss.NewStyle().Foreground(ColorPink)
 		parts = append(parts, pinStyle.Render("\u25cf")) // filled circle
 	} else {
 		parts = append(parts, " ")
@@ -161,18 +161,33 @@ func (r ResultList) renderRow(item ResultItem, selected bool, width int) string 
 		parts = append(parts, langStyle.Render(sn.Language))
 	}
 
-	// Tags.
+	// Tags — on non-selected rows, truncate to keep everything on one line.
 	if len(sn.Tags) > 0 {
 		tagStyle := lipgloss.NewStyle().Foreground(ColorTextDim)
-		for _, tag := range sn.Tags {
-			parts = append(parts, tagStyle.Render("#"+tag))
+		if selected {
+			for _, tag := range sn.Tags {
+				parts = append(parts, tagStyle.Render("#"+tag))
+			}
+		} else {
+			// Calculate remaining space for tags.
+			prefix := strings.Join(parts, " ")
+			used := lipgloss.Width(prefix)
+			for _, tag := range sn.Tags {
+				rendered := tagStyle.Render("#" + tag)
+				needed := lipgloss.Width(rendered) + 1 // +1 for space separator
+				if used+needed > width {
+					break
+				}
+				parts = append(parts, rendered)
+				used += needed
+			}
 		}
 	}
 
 	content := strings.Join(parts, " ")
 
 	// Apply row-level styling.
-	rowStyle := lipgloss.NewStyle().Width(width)
+	rowStyle := lipgloss.NewStyle().Width(width).MaxWidth(width)
 	if selected {
 		rowStyle = rowStyle.
 			Background(ColorBgSelected).
