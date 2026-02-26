@@ -2,11 +2,15 @@ package manage
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/infktd/snipt/src/internal/db"
+	"github.com/infktd/snipt/src/internal/model"
 	"github.com/infktd/snipt/src/internal/tui/common"
+	"github.com/infktd/snipt/src/internal/tui/components"
 )
 
 // mode tracks the current input mode.
@@ -21,7 +25,11 @@ const (
 // ManageModel is the Bubbletea model for the full-screen manage TUI.
 type ManageModel struct {
 	store  *db.Store
-	editor string // resolved editor command
+	editor string
+
+	allSnippets []model.Snippet
+	filtered    []components.ResultItem
+	resultList  components.ResultList
 
 	width    int
 	height   int
@@ -30,12 +38,38 @@ type ManageModel struct {
 }
 
 // NewManageModel creates a new manage screen model.
-func NewManageModel(store *db.Store, editor string) ManageModel {
-	return ManageModel{
-		store:  store,
-		editor: editor,
-		mode:   modeNormal,
+func NewManageModel(store *db.Store, editor string) (ManageModel, error) {
+	snippets, err := store.List(db.ListOpts{})
+	if err != nil {
+		return ManageModel{}, fmt.Errorf("load snippets: %w", err)
 	}
+
+	items := make([]components.ResultItem, len(snippets))
+	for i, sn := range snippets {
+		items[i] = components.ResultItem{
+			Snippet:     sn,
+			FuzzyResult: components.FuzzyResult{Match: true},
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Snippet.Pinned != items[j].Snippet.Pinned {
+			return items[i].Snippet.Pinned
+		}
+		return items[i].Snippet.Title < items[j].Snippet.Title
+	})
+
+	rl := components.NewResultList(30, 20)
+	rl.SetShowPreview(false)
+	rl.SetItems(items)
+
+	return ManageModel{
+		store:       store,
+		editor:      editor,
+		allSnippets: snippets,
+		filtered:    items,
+		resultList:  rl,
+		mode:        modeNormal,
+	}, nil
 }
 
 func (m ManageModel) Init() tea.Cmd {
@@ -47,13 +81,33 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		sidebarWidth := m.width * 30 / 100
+		if sidebarWidth < 25 {
+			sidebarWidth = 25
+		}
+		contentHeight := m.height - 2 // header + status bar
+
+		m.resultList.SetWidth(sidebarWidth - 2) // padding
+		m.resultList.SetHeight(contentHeight)
 		return m, nil
 
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
+		if m.mode == modeNormal {
+			switch msg.String() {
+			case "q", "ctrl+c":
+				m.quitting = true
+				return m, tea.Quit
+			case "j":
+				m.resultList, _ = m.resultList.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+				return m, nil
+			case "k":
+				m.resultList, _ = m.resultList.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+				return m, nil
+			case "down", "ctrl+n", "up", "ctrl+p":
+				m.resultList, _ = m.resultList.Update(msg)
+				return m, nil
+			}
 		}
 	}
 
@@ -67,23 +121,371 @@ func (m ManageModel) View() tea.View {
 		return v
 	}
 
-	// Placeholder: just show "SNIPT MANAGE" centered.
-	placeholder := lipgloss.NewStyle().
-		Foreground(common.ColorText).
-		Width(m.width).
-		Height(m.height).
-		Align(lipgloss.Center, lipgloss.Center).
-		Render(fmt.Sprintf("SNIPT MANAGE\n\n%dx%d\n\nPress q to quit", m.width, m.height))
+	if m.width == 0 || m.height == 0 {
+		v := tea.NewView("")
+		v.AltScreen = true
+		return v
+	}
 
-	v := tea.NewView(placeholder)
+	header := m.renderHeader()
+	content := m.renderContent()
+	statusBar := m.renderStatusBar()
+
+	screen := header + "\n" + content + "\n" + statusBar
+
+	v := tea.NewView(screen)
 	v.AltScreen = true
 	return v
 }
 
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+
+func (m ManageModel) renderHeader() string {
+	badge := common.RenderBadgePill("SNIPT")
+
+	searchPlaceholder := lipgloss.NewStyle().
+		Foreground(common.ColorTextDim).
+		Background(common.ColorBgSurface).
+		Render("  Search snippets...")
+
+	total := m.resultList.Len()
+	count := lipgloss.NewStyle().
+		Foreground(common.ColorTextDim).
+		Background(common.ColorBgSurface).
+		Render(fmt.Sprintf("%d/%d", total, total))
+
+	left := badge + searchPlaceholder
+	leftWidth := lipgloss.Width(left)
+	rightWidth := lipgloss.Width(count)
+	gap := m.width - leftWidth - rightWidth
+	if gap < 1 {
+		gap = 1
+	}
+	filler := lipgloss.NewStyle().
+		Width(gap).
+		Background(common.ColorBgSurface).
+		Render("")
+
+	row := left + filler + count
+
+	// Ensure full width with background.
+	headerStyle := lipgloss.NewStyle().
+		Width(m.width).
+		MaxWidth(m.width).
+		Background(common.ColorBgSurface)
+
+	return headerStyle.Render(row)
+}
+
+// ---------------------------------------------------------------------------
+// Content: sidebar + border + preview
+// ---------------------------------------------------------------------------
+
+func (m ManageModel) renderContent() string {
+	contentHeight := m.height - 2
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	sidebarWidth := m.width * 30 / 100
+	if sidebarWidth < 25 {
+		sidebarWidth = 25
+	}
+	borderWidth := 1
+	previewWidth := m.width - sidebarWidth - borderWidth
+	if previewWidth < 10 {
+		previewWidth = 10
+	}
+
+	sidebarStr := m.renderSidebar(sidebarWidth, contentHeight)
+	previewStr := m.renderPreview(previewWidth, contentHeight)
+
+	// Split both into lines and join line by line.
+	sidebarLines := strings.Split(sidebarStr, "\n")
+	previewLines := strings.Split(previewStr, "\n")
+
+	borderStyle := lipgloss.NewStyle().
+		Foreground(common.ColorBorder).
+		Background(common.ColorBg)
+
+	var lines []string
+	for i := 0; i < contentHeight; i++ {
+		sLine := ""
+		if i < len(sidebarLines) {
+			sLine = sidebarLines[i]
+		}
+		// Ensure sidebar line fills width.
+		sLineWidth := lipgloss.Width(sLine)
+		if sLineWidth < sidebarWidth {
+			pad := lipgloss.NewStyle().
+				Width(sidebarWidth - sLineWidth).
+				Background(common.ColorBgSurface).
+				Render("")
+			sLine += pad
+		}
+
+		border := borderStyle.Render("\u2502")
+
+		pLine := ""
+		if i < len(previewLines) {
+			pLine = previewLines[i]
+		}
+		// Ensure preview line fills width.
+		pLineWidth := lipgloss.Width(pLine)
+		if pLineWidth < previewWidth {
+			pad := lipgloss.NewStyle().
+				Width(previewWidth - pLineWidth).
+				Background(common.ColorBg).
+				Render("")
+			pLine += pad
+		}
+
+		lines = append(lines, sLine+border+pLine)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func (m ManageModel) renderSidebar(width, height int) string {
+	// Wrap the result list in a surface-colored container.
+	listStr := m.resultList.View()
+	listLines := strings.Split(listStr, "\n")
+
+	// Pad each line to full sidebar width with left padding.
+	padStyle := lipgloss.NewStyle().Background(common.ColorBgSurface)
+	var out []string
+	for i := 0; i < height; i++ {
+		if i < len(listLines) {
+			line := " " + listLines[i] // 1-char left margin
+			lineWidth := lipgloss.Width(line)
+			if lineWidth < width {
+				line += padStyle.Width(width - lineWidth).Render("")
+			}
+			out = append(out, line)
+		} else {
+			out = append(out, padStyle.Width(width).Render(""))
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func (m ManageModel) renderPreview(width, height int) string {
+	sel := m.resultList.Selected()
+	if sel == nil {
+		return m.renderEmptyPreview(width, height)
+	}
+	return m.renderSnippetPreview(sel.Snippet, width, height)
+}
+
+func (m ManageModel) renderEmptyPreview(width, height int) string {
+	emptyMsg := lipgloss.NewStyle().
+		Foreground(common.ColorTextDim).
+		Background(common.ColorBg).
+		Render("No snippets yet. Press n to create one.")
+
+	var lines []string
+	msgLine := height / 2
+	for i := 0; i < height; i++ {
+		if i == msgLine {
+			msgWidth := lipgloss.Width(emptyMsg)
+			leftPad := (width - msgWidth) / 2
+			if leftPad < 0 {
+				leftPad = 0
+			}
+			padStr := lipgloss.NewStyle().
+				Width(leftPad).
+				Background(common.ColorBg).
+				Render("")
+			line := padStr + emptyMsg
+			lineWidth := lipgloss.Width(line)
+			if lineWidth < width {
+				line += lipgloss.NewStyle().Width(width - lineWidth).Background(common.ColorBg).Render("")
+			}
+			lines = append(lines, line)
+		} else {
+			lines = append(lines, lipgloss.NewStyle().Width(width).Background(common.ColorBg).Render(""))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m ManageModel) renderSnippetPreview(sn model.Snippet, width, height int) string {
+	bg := common.ColorBg
+	padding := 2 // left padding inside preview
+	contentWidth := width - padding
+	if contentWidth < 5 {
+		contentWidth = 5
+	}
+
+	var lines []string
+
+	// --- Title line with language badge ---
+	titleStyle := lipgloss.NewStyle().
+		Foreground(common.ColorText).
+		Background(bg).
+		Bold(true)
+	titleStr := titleStyle.Render(sn.Title)
+
+	langBadge := ""
+	if sn.Language != "" {
+		langBadge = common.RenderLangBadge(sn.Language, bg)
+	}
+
+	titleWidth := lipgloss.Width(titleStr)
+	badgeWidth := lipgloss.Width(langBadge)
+	titleGap := contentWidth - titleWidth - badgeWidth
+	if titleGap < 1 {
+		titleGap = 1
+	}
+	titleFiller := lipgloss.NewStyle().Width(titleGap).Background(bg).Render("")
+	titleLine := titleStr + titleFiller + langBadge
+	lines = append(lines, titleLine)
+
+	// --- Blank line after title ---
+	lines = append(lines, "")
+
+	// --- Code with line numbers ---
+	codeLines := strings.Split(sn.Content, "\n")
+	maxCodeLines := height - 6 // reserve space for title, blank, blank, tags, meta
+	if maxCodeLines < 1 {
+		maxCodeLines = 1
+	}
+	if len(codeLines) < maxCodeLines {
+		maxCodeLines = len(codeLines)
+	}
+
+	lineNumWidth := len(fmt.Sprintf("%d", maxCodeLines))
+	if lineNumWidth < 2 {
+		lineNumWidth = 2
+	}
+
+	lineNumStyle := lipgloss.NewStyle().
+		Foreground(common.ColorTextMuted).
+		Background(bg)
+	sepStyle := lipgloss.NewStyle().
+		Foreground(common.ColorBorderDim).
+		Background(bg)
+
+	for i := 0; i < maxCodeLines; i++ {
+		num := fmt.Sprintf("%*d", lineNumWidth, i+1)
+		numStr := lineNumStyle.Render(num)
+		sep := sepStyle.Render(" \u2502 ")
+
+		codeLine := codeLines[i]
+		// Truncate long lines.
+		codeAvail := contentWidth - lineNumWidth - 4 // " | " = 3 chars + num width
+		if len([]rune(codeLine)) > codeAvail {
+			codeLine = string([]rune(codeLine)[:codeAvail-1]) + "\u2026"
+		}
+		highlighted := components.SyntaxHighlightLine(codeLine, sn.Language)
+
+		lines = append(lines, numStr+sep+highlighted)
+	}
+
+	// --- Blank line before metadata ---
+	lines = append(lines, "")
+
+	// --- Tags ---
+	if len(sn.Tags) > 0 {
+		tagLabel := lipgloss.NewStyle().
+			Foreground(common.ColorTextDim).
+			Background(bg).
+			Render("Tags: ")
+		var tagParts []string
+		for _, tag := range sn.Tags {
+			tagParts = append(tagParts, common.RenderTagBadge(tag, common.ColorTextSub, bg))
+		}
+		tagsLine := tagLabel + strings.Join(tagParts, " ")
+		lines = append(lines, tagsLine)
+	}
+
+	// --- Pinned / Uses ---
+	pinnedStr := "no"
+	if sn.Pinned {
+		pinnedStr = lipgloss.NewStyle().
+			Foreground(common.ColorPink).
+			Background(bg).
+			Render("yes")
+	} else {
+		pinnedStr = lipgloss.NewStyle().
+			Foreground(common.ColorTextDim).
+			Background(bg).
+			Render("no")
+	}
+	metaLabel := lipgloss.NewStyle().
+		Foreground(common.ColorTextDim).
+		Background(bg)
+	metaLine := metaLabel.Render("Pinned: ") + pinnedStr +
+		metaLabel.Render("  Uses: ") +
+		lipgloss.NewStyle().Foreground(common.ColorTextSub).Background(bg).Render(fmt.Sprintf("%d", sn.UseCount))
+	lines = append(lines, metaLine)
+
+	// --- Pad lines to height and add left padding ---
+	padLeft := lipgloss.NewStyle().Width(padding).Background(bg).Render("")
+	var finalLines []string
+	for i := 0; i < height; i++ {
+		if i < len(lines) {
+			line := padLeft + lines[i]
+			lineWidth := lipgloss.Width(line)
+			if lineWidth < width {
+				line += lipgloss.NewStyle().Width(width - lineWidth).Background(bg).Render("")
+			}
+			finalLines = append(finalLines, line)
+		} else {
+			finalLines = append(finalLines, lipgloss.NewStyle().Width(width).Background(bg).Render(""))
+		}
+	}
+	return strings.Join(finalLines, "\n")
+}
+
+// ---------------------------------------------------------------------------
+// Status bar
+// ---------------------------------------------------------------------------
+
+func (m ManageModel) renderStatusBar() string {
+	keyStyle := lipgloss.NewStyle().
+		Foreground(common.ColorText).
+		Background(common.ColorBgOverlay).
+		Bold(true)
+	descStyle := lipgloss.NewStyle().
+		Foreground(common.ColorTextDim).
+		Background(common.ColorBgOverlay)
+
+	hints := []struct{ key, desc string }{
+		{"\u2191\u2193/jk", "navigate"},
+		{"enter", "copy"},
+		{"/", "search"},
+		{"n", "new"},
+		{"e", "edit"},
+		{"d", "delete"},
+		{"p", "pin"},
+		{"q", "quit"},
+	}
+
+	var parts []string
+	for _, h := range hints {
+		parts = append(parts, keyStyle.Render(h.key)+" "+descStyle.Render(h.desc))
+	}
+
+	content := "  " + strings.Join(parts, descStyle.Render("  "))
+
+	barStyle := lipgloss.NewStyle().
+		Width(m.width).
+		MaxWidth(m.width).
+		Background(common.ColorBgOverlay)
+
+	return barStyle.Render(content)
+}
+
 // RunManage launches the manage TUI.
 func RunManage(store *db.Store, editor string) error {
-	m := NewManageModel(store, editor)
+	m, err := NewManageModel(store, editor)
+	if err != nil {
+		return err
+	}
 	p := tea.NewProgram(m)
-	_, err := p.Run()
+	_, err = p.Run()
 	return err
 }
