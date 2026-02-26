@@ -1,14 +1,17 @@
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/infktd/snipt/src/internal/cli"
+	"github.com/infktd/snipt/src/internal/model"
 )
 
-// Version is set by goreleaser at build time.
 var version = "dev"
 
 func main() {
-	fmt.Fprintln(os.Stderr, "snipt", version)
-	os.Exit(0)
+	root := cli.NewRootCmd(version)
+	if err := root.Execute(); err != nil {
+		os.Exit(model.ExitError)
+	}
 }
