@@ -58,7 +58,7 @@ func (r ResultList) Update(msg tea.Msg) (ResultList, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "up", "ctrl+p":
 			r.cursor--
