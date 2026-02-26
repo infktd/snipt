@@ -423,6 +423,9 @@ func (r ResultList) renderSingleRow(item ResultItem, selected bool) string {
 // Syntax highlighting for code preview
 // ---------------------------------------------------------------------------
 
+// numberRe matches standalone digit sequences for syntax highlighting.
+var numberRe = regexp.MustCompile(`\b\d+\b`)
+
 // Language keyword patterns for syntax highlighting.
 var langKeywords = map[string]*regexp.Regexp{
 	"go":         regexp.MustCompile(`\b(func|return|if|else|for|range|switch|case|type|struct|var|const|package|import|defer|go|select|chan|map|interface|nil|true|false|err)\b`),
@@ -507,7 +510,6 @@ func FindCommentStart(line string, language string) int {
 // to keywords, strings, and numbers.
 func HighlightTokens(code string, language string) string {
 	keywordRe := langKeywords[language]
-	numberRe := regexp.MustCompile(`\b\d+\b`)
 
 	kwStyle := lipgloss.NewStyle().Foreground(common.ColorMauve).Bold(true).Background(common.ColorBgSurface)
 	strStyle := lipgloss.NewStyle().Foreground(common.ColorGreen).Background(common.ColorBgSurface)

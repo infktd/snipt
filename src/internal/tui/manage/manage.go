@@ -225,8 +225,11 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					m.editTmpPath = tmpPath
-					parts := strings.Fields(m.editor)
-					cmd := exec.Command(parts[0], append(parts[1:], tmpPath)...)
+					cmd := editorCommand(m.editor, tmpPath)
+					if cmd == nil {
+						os.Remove(tmpPath)
+						return m, nil
+					}
 					return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 						return editorFinishedMsg{err: err}
 					})
@@ -241,8 +244,11 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.editTmpPath = tmpPath
-				parts := strings.Fields(m.editor)
-				cmd := exec.Command(parts[0], append(parts[1:], tmpPath)...)
+				cmd := editorCommand(m.editor, tmpPath)
+				if cmd == nil {
+					os.Remove(tmpPath)
+					return m, nil
+				}
 				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 					return editorFinishedMsg{err: err}
 				})
@@ -408,6 +414,16 @@ func (m *ManageModel) reloadSnippets() {
 	}
 	m.allSnippets = snippets
 	m.applyFilter()
+}
+
+// editorCommand builds an exec.Cmd for the configured editor. Returns nil if
+// the editor string is empty (prevents index-out-of-range panic).
+func editorCommand(editor, filePath string) *exec.Cmd {
+	parts := strings.Fields(editor)
+	if len(parts) == 0 {
+		return nil
+	}
+	return exec.Command(parts[0], append(parts[1:], filePath)...)
 }
 
 // applyFilter fuzzy-matches the current query against all snippets and updates the result list.
