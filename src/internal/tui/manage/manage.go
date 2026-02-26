@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/infktd/snipt/src/internal/db"
@@ -30,11 +32,13 @@ type ManageModel struct {
 	allSnippets []model.Snippet
 	filtered    []components.ResultItem
 	resultList  components.ResultList
+	searchInput textinput.Model
 
-	width    int
-	height   int
-	mode     mode
-	quitting bool
+	width          int
+	height         int
+	mode           mode
+	quitting       bool
+	copiedFeedback bool
 }
 
 // NewManageModel creates a new manage screen model.
@@ -62,18 +66,46 @@ func NewManageModel(store *db.Store, editor string) (ManageModel, error) {
 	rl.SetShowPreview(false)
 	rl.SetItems(items)
 
+	// Initialize search textinput (starts blurred).
+	ti := textinput.New()
+	ti.Placeholder = "Search snippets..."
+	ti.CharLimit = 120
+
+	styles := ti.Styles()
+	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(common.ColorMauve).Background(common.ColorBgSurface)
+	styles.Focused.Text = lipgloss.NewStyle().Foreground(common.ColorText).Background(common.ColorBgSurface)
+	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(common.ColorTextDim).Background(common.ColorBgSurface)
+	styles.Blurred.Prompt = lipgloss.NewStyle().Foreground(common.ColorTextDim).Background(common.ColorBgSurface)
+	styles.Blurred.Text = lipgloss.NewStyle().Foreground(common.ColorTextDim).Background(common.ColorBgSurface)
+	styles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(common.ColorTextDim).Background(common.ColorBgSurface)
+	styles.Cursor.Color = common.ColorMauve
+	styles.Cursor.Shape = tea.CursorBar
+	ti.SetStyles(styles)
+	ti.Prompt = " "
+	ti.Blur()
+
 	return ManageModel{
 		store:       store,
 		editor:      editor,
 		allSnippets: snippets,
 		filtered:    items,
 		resultList:  rl,
+		searchInput: ti,
 		mode:        modeNormal,
 	}, nil
 }
 
 func (m ManageModel) Init() tea.Cmd {
 	return nil
+}
+
+// copiedMsg signals that the "Copied!" feedback timer has elapsed.
+type copiedMsg struct{}
+
+func (m ManageModel) clearCopiedAfter() tea.Cmd {
+	return tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+		return copiedMsg{}
+	})
 }
 
 func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -92,12 +124,61 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resultList.SetHeight(contentHeight)
 		return m, nil
 
+	case copiedMsg:
+		m.copiedFeedback = false
+		return m, nil
+
 	case tea.KeyPressMsg:
+		if m.mode == modeSearch {
+			switch msg.String() {
+			case "esc":
+				m.searchInput.Blur()
+				m.searchInput.SetValue("")
+				m.applyFilter()
+				m.mode = modeNormal
+				return m, nil
+			case "enter":
+				// Confirm search, switch back to normal mode keeping the filter.
+				m.searchInput.Blur()
+				m.mode = modeNormal
+				return m, nil
+			case "up", "ctrl+p":
+				m.resultList, _ = m.resultList.Update(msg)
+				return m, nil
+			case "down", "ctrl+n":
+				m.resultList, _ = m.resultList.Update(msg)
+				return m, nil
+			}
+
+			// All other keys go to the textinput.
+			prevValue := m.searchInput.Value()
+			var cmd tea.Cmd
+			m.searchInput, cmd = m.searchInput.Update(msg)
+			if m.searchInput.Value() != prevValue {
+				m.applyFilter()
+			}
+			return m, cmd
+		}
+
 		if m.mode == modeNormal {
 			switch msg.String() {
 			case "q", "ctrl+c":
 				m.quitting = true
 				return m, tea.Quit
+			case "/":
+				m.mode = modeSearch
+				m.searchInput.Focus()
+				return m, nil
+			case "enter":
+				if sel := m.resultList.Selected(); sel != nil {
+					m.copiedFeedback = true
+					_ = m.store.IncrementUseCount(sel.Snippet.ID)
+					return m, tea.Batch(
+						tea.SetClipboard(sel.Snippet.Content),
+						m.clearCopiedAfter(),
+					)
+				}
+				return m, nil
 			case "j":
 				m.resultList, _ = m.resultList.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 				return m, nil
@@ -112,6 +193,148 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// applyFilter fuzzy-matches the current query against all snippets and updates the result list.
+func (m *ManageModel) applyFilter() {
+	query := m.searchInput.Value()
+
+	if query == "" {
+		// Show all snippets, no scoring needed (except pin bonus).
+		items := make([]components.ResultItem, 0, len(m.allSnippets))
+		for _, sn := range m.allSnippets {
+			items = append(items, components.ResultItem{
+				Snippet:     sn,
+				FuzzyResult: components.FuzzyResult{Match: true, Score: 0},
+			})
+		}
+		// Sort: pinned first, then by title.
+		sort.SliceStable(items, func(i, j int) bool {
+			if items[i].Snippet.Pinned != items[j].Snippet.Pinned {
+				return items[i].Snippet.Pinned
+			}
+			return items[i].Snippet.Title < items[j].Snippet.Title
+		})
+		m.filtered = items
+		m.resultList.SetItems(items)
+		return
+	}
+
+	// Tag-only search: #foo matches only against tags, skips title/content.
+	if strings.HasPrefix(query, "#") {
+		tagQuery := strings.ToLower(strings.TrimPrefix(query, "#"))
+		if tagQuery == "" {
+			// Just "#" typed, show everything in same order as empty query.
+			items := make([]components.ResultItem, 0, len(m.allSnippets))
+			for _, sn := range m.allSnippets {
+				items = append(items, components.ResultItem{
+					Snippet:     sn,
+					FuzzyResult: components.FuzzyResult{Match: true, Score: 0},
+				})
+			}
+			sort.SliceStable(items, func(i, j int) bool {
+				if items[i].Snippet.Pinned != items[j].Snippet.Pinned {
+					return items[i].Snippet.Pinned
+				}
+				return items[i].Snippet.Title < items[j].Snippet.Title
+			})
+			m.filtered = items
+			m.resultList.SetItems(items)
+			return
+		}
+
+		var items []components.ResultItem
+		for _, sn := range m.allSnippets {
+			for _, tag := range sn.Tags {
+				if strings.Contains(strings.ToLower(tag), tagQuery) {
+					score := 0
+					if sn.Pinned {
+						score += 3
+					}
+					// Exact match gets a big boost.
+					if strings.ToLower(tag) == tagQuery {
+						score += 10
+					}
+					items = append(items, components.ResultItem{
+						Snippet:     sn,
+						FuzzyResult: components.FuzzyResult{Match: true, Score: score},
+					})
+					break
+				}
+			}
+		}
+		sort.SliceStable(items, func(i, j int) bool {
+			return items[i].FuzzyResult.Score > items[j].FuzzyResult.Score
+		})
+		m.filtered = items
+		m.resultList.SetItems(items)
+		return
+	}
+
+	// Fuzzy search on title + tag/content fallback.
+	queryLower := strings.ToLower(query)
+
+	type scored struct {
+		item  components.ResultItem
+		total int
+	}
+
+	var results []scored
+	for _, sn := range m.allSnippets {
+		fr := components.FuzzyMatch(sn.Title, query)
+		if !fr.Match {
+			hasTagMatch := false
+			for _, tag := range sn.Tags {
+				if strings.Contains(strings.ToLower(tag), queryLower) {
+					hasTagMatch = true
+					break
+				}
+			}
+			hasContentMatch := strings.Contains(strings.ToLower(sn.Content), queryLower)
+
+			if !hasTagMatch && !hasContentMatch {
+				continue
+			}
+			fr = components.FuzzyResult{Match: true, Score: 0}
+		}
+
+		total := fr.Score
+
+		if sn.Pinned {
+			total += 3
+		}
+
+		for _, tag := range sn.Tags {
+			if strings.Contains(strings.ToLower(tag), queryLower) {
+				total += 5
+				break
+			}
+		}
+
+		if strings.Contains(strings.ToLower(sn.Content), queryLower) {
+			total += 2
+		}
+
+		results = append(results, scored{
+			item: components.ResultItem{
+				Snippet:     sn,
+				FuzzyResult: fr,
+			},
+			total: total,
+		})
+	}
+
+	sort.SliceStable(results, func(i, j int) bool {
+		return results[i].total > results[j].total
+	})
+
+	items := make([]components.ResultItem, len(results))
+	for i, r := range results {
+		items[i] = r.item
+	}
+
+	m.filtered = items
+	m.resultList.SetItems(items)
 }
 
 func (m ManageModel) View() tea.View {
@@ -145,18 +368,27 @@ func (m ManageModel) View() tea.View {
 func (m ManageModel) renderHeader() string {
 	badge := common.RenderBadgePill("SNIPT")
 
-	searchPlaceholder := lipgloss.NewStyle().
-		Foreground(common.ColorTextDim).
-		Background(common.ColorBgSurface).
-		Render("  Search snippets...")
+	// Search input or placeholder.
+	var searchView string
+	if m.mode == modeSearch {
+		searchView = m.searchInput.View()
+	} else if m.searchInput.Value() != "" {
+		// Show query as blurred text.
+		searchView = m.searchInput.View()
+	} else {
+		searchView = lipgloss.NewStyle().
+			Foreground(common.ColorTextDim).
+			Background(common.ColorBgSurface).
+			Render("  Search snippets...")
+	}
 
-	total := m.resultList.Len()
+	countStr := fmt.Sprintf("%d/%d", len(m.filtered), len(m.allSnippets))
 	count := lipgloss.NewStyle().
 		Foreground(common.ColorTextDim).
 		Background(common.ColorBgSurface).
-		Render(fmt.Sprintf("%d/%d", total, total))
+		Render(countStr)
 
-	left := badge + searchPlaceholder
+	left := badge + searchView
 	leftWidth := lipgloss.Width(left)
 	rightWidth := lipgloss.Width(count)
 	gap := m.width - leftWidth - rightWidth
@@ -453,15 +685,24 @@ func (m ManageModel) renderStatusBar() string {
 		Foreground(common.ColorTextDim).
 		Background(common.ColorBgOverlay)
 
-	hints := []struct{ key, desc string }{
-		{"\u2191\u2193/jk", "navigate"},
-		{"enter", "copy"},
-		{"/", "search"},
-		{"n", "new"},
-		{"e", "edit"},
-		{"d", "delete"},
-		{"p", "pin"},
-		{"q", "quit"},
+	var hints []struct{ key, desc string }
+	if m.mode == modeSearch {
+		hints = []struct{ key, desc string }{
+			{"esc", "clear"},
+			{"\u2191\u2193", "navigate"},
+			{"enter", "confirm"},
+		}
+	} else {
+		hints = []struct{ key, desc string }{
+			{"\u2191\u2193/jk", "navigate"},
+			{"enter", "copy"},
+			{"/", "search"},
+			{"n", "new"},
+			{"e", "edit"},
+			{"d", "delete"},
+			{"p", "pin"},
+			{"q", "quit"},
+		}
 	}
 
 	var parts []string
@@ -470,6 +711,15 @@ func (m ManageModel) renderStatusBar() string {
 	}
 
 	content := "  " + strings.Join(parts, descStyle.Render("  "))
+
+	if m.copiedFeedback {
+		feedback := lipgloss.NewStyle().
+			Foreground(common.ColorGreen).
+			Background(common.ColorBgOverlay).
+			Bold(true).
+			Render("Copied!")
+		content = "  " + feedback + descStyle.Render("  ") + content
+	}
 
 	barStyle := lipgloss.NewStyle().
 		Width(m.width).
