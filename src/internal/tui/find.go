@@ -15,7 +15,8 @@ import (
 const (
 	findDefaultWidth  = 80
 	findDefaultHeight = 24
-	findPadding       = 4 // vertical padding above/below the panel
+	findPadding       = 4 // rows reserved for panel chrome outside the result list
+	findListMaxHeight = 12
 )
 
 // FindModel is the Bubbletea model for the snipt find palette.
@@ -63,7 +64,10 @@ func NewFindModel(snippets []model.Snippet, initialQuery string, idOnly, clipOut
 	}
 
 	// Initialize the result list with available height for results.
-	listHeight := m.height - findPadding - 4 // header + border + hint rows
+	listHeight := findListMaxHeight
+	if listHeight > m.height-findPadding-4 {
+		listHeight = m.height - findPadding - 4
+	}
 	if listHeight < 3 {
 		listHeight = 3
 	}
@@ -89,8 +93,17 @@ func (m FindModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if panelWidth > m.width-4 {
 			panelWidth = m.width - 4
 		}
+		if panelWidth < 40 {
+			panelWidth = 40
+		}
+		if panelWidth > m.width {
+			panelWidth = m.width
+		}
 
-		listHeight := m.height - findPadding - 4
+		listHeight := findListMaxHeight
+		if listHeight > m.height-findPadding-4 {
+			listHeight = m.height - findPadding - 4
+		}
 		if listHeight < 3 {
 			listHeight = 3
 		}
@@ -243,6 +256,9 @@ func (m FindModel) View() tea.View {
 	if panelWidth < 40 {
 		panelWidth = 40
 	}
+	if panelWidth > m.width {
+		panelWidth = m.width
+	}
 
 	innerWidth := panelWidth - 6 // border (2) + padding 2*2 (4) = 6
 
@@ -278,7 +294,7 @@ func (m FindModel) View() tea.View {
 	listView := m.resultList.View()
 
 	// -- Hint line (inside the border) --
-	hintStyle := lipgloss.NewStyle().Foreground(ColorTextDim)
+	hintStyle := lipgloss.NewStyle().Foreground(ColorTextDim).MaxWidth(innerWidth)
 	hint := hintStyle.Render("\u2191\u2193 navigate  enter copy  esc close")
 
 	// -- Compose the inner content (hint inside the border) --
