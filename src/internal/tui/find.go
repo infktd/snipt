@@ -2,10 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"sort"
 	"strings"
-
-	"image/color"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
