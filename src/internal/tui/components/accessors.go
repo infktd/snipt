@@ -14,3 +14,13 @@ func (r *ResultList) SetWidth(w int) {
 func (r *ResultList) SetHeight(h int) {
 	r.height = h
 }
+
+// Cursor returns the current cursor position.
+func (r *ResultList) Cursor() int {
+	return r.cursor
+}
+
+// Items returns the current items slice.
+func (r *ResultList) Items() []ResultItem {
+	return r.items
+}
