@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/infktd/snipt/src/internal/model"
+	"github.com/infktd/snipt/src/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -54,6 +55,27 @@ func newNewCmd() *cobra.Command {
 				Language: cfg.DefaultLanguage,
 			}
 
+			// Launch the metadata form to collect title, language, tags, and description.
+			form, err := tui.RunForm(cfg.DefaultLanguage)
+			if err != nil {
+				return fmt.Errorf("metadata form: %w", err)
+			}
+
+			if !form.Cancelled {
+				if form.Title != "" {
+					snippet.Title = form.Title
+				}
+				if form.Language != "" {
+					snippet.Language = form.Language
+				}
+				if form.Description != "" {
+					snippet.Description = form.Description
+				}
+				if form.Tags != "" {
+					snippet.Tags = parseTags(form.Tags)
+				}
+			}
+
 			if err := store.Create(snippet); err != nil {
 				return fmt.Errorf("save snippet: %w", err)
 			}
@@ -62,4 +84,17 @@ func newNewCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// parseTags splits a comma-separated tag string into a slice of trimmed, non-empty tags.
+func parseTags(s string) []string {
+	raw := strings.Split(s, ",")
+	tags := make([]string, 0, len(raw))
+	for _, t := range raw {
+		t = strings.TrimSpace(t)
+		if t != "" {
+			tags = append(tags, t)
+		}
+	}
+	return tags
 }
