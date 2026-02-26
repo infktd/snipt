@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"image/color"
 	"regexp"
 	"strings"
 
@@ -92,7 +93,12 @@ func (r ResultList) View() string {
 	}
 
 	// Determine the visible window of items.
-	visibleCount := r.height
+	// When showPreview is false (manage sidebar), each row is 2 lines tall.
+	linesPerItem := 1
+	if !r.showPreview {
+		linesPerItem = 2
+	}
+	visibleCount := r.height / linesPerItem
 	if visibleCount > len(r.items) {
 		visibleCount = len(r.items)
 	}
@@ -324,7 +330,7 @@ func (r ResultList) renderPreviewBox(sn model.Snippet, width int) string {
 			line = string([]rune(line)[:codeWidth-1])
 			truncated = true
 		}
-		highlighted := SyntaxHighlightLine(line, sn.Language)
+		highlighted := SyntaxHighlightLine(line, sn.Language, common.ColorBgSurface)
 		if truncated {
 			highlighted += lipgloss.NewStyle().Foreground(common.ColorTextMuted).Background(common.ColorBgSurface).Render("\u2026")
 		}
@@ -351,19 +357,134 @@ func (r ResultList) renderPreviewBox(sn model.Snippet, width int) string {
 	return previewStyle.Render(previewText)
 }
 
-// renderSingleRow renders a single-line row (non-selected rows,
-// or selected rows when showPreview is false).
+// renderSingleRow renders a two-line row for manage sidebar (showPreview=false)
+// or a single-line row for find palette (showPreview=true).
+//
+// Two-line layout (manage sidebar):
+//   Line 1: [accent/indent] [●/space] Title text
+//   Line 2: [accent/indent]   [lang badge] #tag1 #tag2 ...
+//
+// Single-line layout (find palette):
+//   [indent] [pin] title [lang badge] [tags...]
 func (r ResultList) renderSingleRow(item ResultItem, selected bool) string {
 	sn := item.Snippet
 
-	width := r.width
-	indent := ""
+	// For find palette (showPreview=true), use single-line layout.
 	if r.showPreview {
-		width = r.width - 1
-		indent = " "
+		return r.renderSingleLineRow(item, selected)
 	}
 
-	// Pick background for this row.
+	// -- Two-line manage sidebar layout --
+	width := r.width
+
+	rowBg := common.ColorBgSurface
+	if selected {
+		rowBg = common.ColorBgSelected
+	}
+
+	// Accent bar prefix (2 chars: bar + space for selected, 2 spaces for non-selected).
+	accentWidth := 2
+	contentWidth := width - accentWidth
+
+	var barLine1, barLine2 string
+	if selected {
+		barStyle := lipgloss.NewStyle().Foreground(common.ColorPink).Background(common.ColorBgSelected)
+		barAfter := lipgloss.NewStyle().Width(1).Background(common.ColorBgSelected)
+		bar := barStyle.Render("\u258c") + barAfter.Render(" ")
+		barLine1 = bar
+		barLine2 = bar
+	} else {
+		indent := lipgloss.NewStyle().Width(2).Background(rowBg).Render("  ")
+		barLine1 = indent
+		barLine2 = indent
+	}
+
+	// -- Line 1: [●/space] Title --
+	var pinStr string
+	if sn.Pinned {
+		pinStr = lipgloss.NewStyle().Foreground(common.ColorPink).Background(rowBg).Render("\u25cf")
+	} else {
+		pinStr = lipgloss.NewStyle().Background(rowBg).Render(" ")
+	}
+
+	titleAvail := contentWidth - 2 // pin(1) + space(1)
+	if titleAvail < 4 {
+		titleAvail = 4
+	}
+
+	titleText := sn.Title
+	titleTruncated := false
+	if len([]rune(titleText)) > titleAvail {
+		titleText = string([]rune(titleText)[:titleAvail-1])
+		titleTruncated = true
+	}
+
+	indices := item.FuzzyResult.Indices
+	if titleTruncated {
+		var trimmed []int
+		for _, idx := range indices {
+			if idx < len([]rune(titleText)) {
+				trimmed = append(trimmed, idx)
+			}
+		}
+		indices = trimmed
+	}
+
+	title := common.RenderFuzzyTitleWithBg(titleText, indices, selected, rowBg)
+	if titleTruncated {
+		title += lipgloss.NewStyle().Foreground(common.ColorTextDim).Background(rowBg).Render("\u2026")
+	}
+
+	spacer := lipgloss.NewStyle().Background(rowBg).Render(" ")
+	line1Content := pinStr + spacer + title
+
+	line1Style := lipgloss.NewStyle().Width(contentWidth).MaxWidth(contentWidth).Background(rowBg)
+	if selected {
+		line1Style = line1Style.Bold(true)
+	}
+	line1 := barLine1 + line1Style.Render(line1Content)
+
+	// -- Line 2: [2-space indent] lang badge + tags --
+	metaIndent := lipgloss.NewStyle().Background(rowBg).Render("  ")
+	var metaParts []string
+
+	if sn.Language != "" {
+		metaParts = append(metaParts, common.RenderLangBadge(sn.Language, rowBg))
+	}
+
+	if len(sn.Tags) > 0 {
+		tagColor := common.ColorTextDim
+		if selected {
+			tagColor = common.ColorTextSub
+		}
+
+		used := 2 + lipgloss.Width(strings.Join(metaParts, " ")) // indent + lang badge
+		for _, tag := range sn.Tags {
+			rendered := common.RenderTagBadge(tag, tagColor, rowBg)
+			needed := lipgloss.Width(rendered) + 1
+			if used+needed > contentWidth {
+				break
+			}
+			metaParts = append(metaParts, rendered)
+			used += needed
+		}
+	}
+
+	line2Content := metaIndent +
+		strings.Join(metaParts, lipgloss.NewStyle().Background(rowBg).Render(" "))
+
+	line2Style := lipgloss.NewStyle().Width(contentWidth).MaxWidth(contentWidth).Background(rowBg)
+	line2 := barLine2 + line2Style.Render(line2Content)
+
+	return line1 + "\n" + line2
+}
+
+// renderSingleLineRow renders a single-line row for find palette (showPreview=true).
+func (r ResultList) renderSingleLineRow(item ResultItem, selected bool) string {
+	sn := item.Snippet
+	width := r.width - 1
+	indent := " "
+
 	rowBg := common.ColorBgSurface
 	if selected {
 		rowBg = common.ColorBgSelected
@@ -441,7 +562,7 @@ var langKeywords = map[string]*regexp.Regexp{
 
 // SyntaxHighlightLine applies basic syntax coloring to a single line of code.
 // Keywords: mauve, strings: green, numbers: peach, comments: textMuted.
-func SyntaxHighlightLine(line string, language string) string {
+func SyntaxHighlightLine(line string, language string, bg color.Color) string {
 	if len(line) == 0 {
 		return ""
 	}
@@ -451,7 +572,7 @@ func SyntaxHighlightLine(line string, language string) string {
 
 	if commentIdx == 0 {
 		// Entire line is a comment.
-		return lipgloss.NewStyle().Foreground(common.ColorTextMuted).Background(common.ColorBgSurface).Render(line)
+		return lipgloss.NewStyle().Foreground(common.ColorTextMuted).Background(bg).Render(line)
 	}
 
 	var codePart, commentPart string
@@ -463,11 +584,11 @@ func SyntaxHighlightLine(line string, language string) string {
 	}
 
 	// Tokenize and highlight the code part.
-	highlighted := HighlightTokens(codePart, language)
+	highlighted := HighlightTokens(codePart, language, bg)
 
 	// Append comment in muted style.
 	if commentPart != "" {
-		highlighted += lipgloss.NewStyle().Foreground(common.ColorTextMuted).Background(common.ColorBgSurface).Render(commentPart)
+		highlighted += lipgloss.NewStyle().Foreground(common.ColorTextMuted).Background(bg).Render(commentPart)
 	}
 
 	return highlighted
@@ -508,13 +629,13 @@ func FindCommentStart(line string, language string) int {
 
 // HighlightTokens walks through a code string and applies syntax colors
 // to keywords, strings, and numbers.
-func HighlightTokens(code string, language string) string {
+func HighlightTokens(code string, language string, bg color.Color) string {
 	keywordRe := langKeywords[language]
 
-	kwStyle := lipgloss.NewStyle().Foreground(common.ColorMauve).Bold(true).Background(common.ColorBgSurface)
-	strStyle := lipgloss.NewStyle().Foreground(common.ColorGreen).Background(common.ColorBgSurface)
-	numStyle := lipgloss.NewStyle().Foreground(common.ColorPeach).Background(common.ColorBgSurface)
-	defaultStyle := lipgloss.NewStyle().Foreground(common.ColorTextSub).Background(common.ColorBgSurface)
+	kwStyle := lipgloss.NewStyle().Foreground(common.ColorMauve).Bold(true).Background(bg)
+	strStyle := lipgloss.NewStyle().Foreground(common.ColorGreen).Background(bg)
+	numStyle := lipgloss.NewStyle().Foreground(common.ColorPeach).Background(bg)
+	defaultStyle := lipgloss.NewStyle().Foreground(common.ColorTextSub).Background(bg)
 
 	var out strings.Builder
 	runes := []rune(code)

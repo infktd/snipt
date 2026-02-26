@@ -130,10 +130,10 @@ func (m ManageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if sidebarWidth < 25 {
 			sidebarWidth = 25
 		}
-		contentHeight := m.height - 2 // header + status bar
+		contentHeight := m.height - 3 // header + status separator + status bar
 
 		m.resultList.SetWidth(sidebarWidth - 2) // padding
-		m.resultList.SetHeight(contentHeight)
+		m.resultList.SetHeight(contentHeight - 2) // -2 for top/bottom breathing lines
 		return m, nil
 
 	case copiedMsg:
@@ -583,9 +583,10 @@ func (m ManageModel) View() tea.View {
 
 	header := m.renderHeader()
 	content := m.renderContent()
+	statusSep := m.renderStatusSeparator()
 	statusBar := m.renderStatusBar()
 
-	screen := header + "\n" + content + "\n" + statusBar
+	screen := header + "\n" + content + "\n" + statusSep + "\n" + statusBar
 
 	v := tea.NewView(screen)
 	v.AltScreen = true
@@ -647,7 +648,7 @@ func (m ManageModel) renderHeader() string {
 // ---------------------------------------------------------------------------
 
 func (m ManageModel) renderContent() string {
-	contentHeight := m.height - 2
+	contentHeight := m.height - 3 // header + status separator + status bar
 	if contentHeight < 1 {
 		contentHeight = 1
 	}
@@ -670,7 +671,7 @@ func (m ManageModel) renderContent() string {
 	previewLines := strings.Split(previewStr, "\n")
 
 	borderStyle := lipgloss.NewStyle().
-		Foreground(common.ColorBorder).
+		Foreground(common.ColorBorderDim).
 		Background(common.ColorBg)
 
 	var lines []string
@@ -705,7 +706,18 @@ func (m ManageModel) renderContent() string {
 			pLine += pad
 		}
 
-		lines = append(lines, sLine+border+pLine)
+		composedLine := sLine + border + pLine
+
+		// Ensure composed line fills full terminal width.
+		composedWidth := lipgloss.Width(composedLine)
+		if composedWidth < m.width {
+			composedLine += lipgloss.NewStyle().
+				Width(m.width - composedWidth).
+				Background(common.ColorBg).
+				Render("")
+		}
+
+		lines = append(lines, composedLine)
 	}
 
 	return strings.Join(lines, "\n")
@@ -716,21 +728,31 @@ func (m ManageModel) renderSidebar(width, height int) string {
 	listStr := m.resultList.View()
 	listLines := strings.Split(listStr, "\n")
 
-	// Pad each line to full sidebar width with left padding.
 	padStyle := lipgloss.NewStyle().Background(common.ColorBgSurface)
+	emptyLine := padStyle.Width(width).Render("")
+	leftPad := lipgloss.NewStyle().Width(1).Background(common.ColorBgSurface).Render("")
+
 	var out []string
-	for i := 0; i < height; i++ {
+
+	// Breathing room: 1 empty line at top (between header/separator and first row).
+	out = append(out, emptyLine)
+
+	for i := 0; i < height-2; i++ { // -2 for top and bottom breathing lines
 		if i < len(listLines) {
-			line := " " + listLines[i] // 1-char left margin
+			line := leftPad + listLines[i]
 			lineWidth := lipgloss.Width(line)
 			if lineWidth < width {
 				line += padStyle.Width(width - lineWidth).Render("")
 			}
 			out = append(out, line)
 		} else {
-			out = append(out, padStyle.Width(width).Render(""))
+			out = append(out, emptyLine)
 		}
 	}
+
+	// Breathing room: 1 empty line at bottom (before status bar).
+	out = append(out, emptyLine)
+
 	return strings.Join(out, "\n")
 }
 
@@ -806,12 +828,20 @@ func (m ManageModel) renderSnippetPreview(sn model.Snippet, width, height int) s
 	titleLine := titleStr + titleFiller + langBadge
 	lines = append(lines, titleLine)
 
-	// --- Blank line after title ---
+	// --- Horizontal separator below title ---
+	sepChar := strings.Repeat("\u2500", contentWidth)
+	sepLine := lipgloss.NewStyle().
+		Foreground(common.ColorBorderDim).
+		Background(bg).
+		Render(sepChar)
+	lines = append(lines, sepLine)
+
+	// --- Blank line after separator ---
 	lines = append(lines, "")
 
 	// --- Code with line numbers ---
 	codeLines := strings.Split(sn.Content, "\n")
-	maxCodeLines := height - 6 // reserve space for title, blank, blank, tags, meta
+	maxCodeLines := height - 8 // reserve: title, separator, blank, blank, tags, blank, meta, padding
 	if maxCodeLines < 1 {
 		maxCodeLines = 1
 	}
@@ -842,7 +872,7 @@ func (m ManageModel) renderSnippetPreview(sn model.Snippet, width, height int) s
 		if len([]rune(codeLine)) > codeAvail {
 			codeLine = string([]rune(codeLine)[:codeAvail-1]) + "\u2026"
 		}
-		highlighted := components.SyntaxHighlightLine(codeLine, sn.Language)
+		highlighted := components.SyntaxHighlightLine(codeLine, sn.Language, common.ColorBg)
 
 		lines = append(lines, numStr+sep+highlighted)
 	}
@@ -855,34 +885,35 @@ func (m ManageModel) renderSnippetPreview(sn model.Snippet, width, height int) s
 		tagLabel := lipgloss.NewStyle().
 			Foreground(common.ColorTextDim).
 			Background(bg).
-			Render("Tags: ")
+			Render("Tags:  ")
 		var tagParts []string
 		for _, tag := range sn.Tags {
 			tagParts = append(tagParts, common.RenderTagBadge(tag, common.ColorTextSub, bg))
 		}
 		tagsLine := tagLabel + strings.Join(tagParts, " ")
 		lines = append(lines, tagsLine)
+
+		// Blank line between tags and metadata.
+		lines = append(lines, "")
 	}
 
 	// --- Pinned / Uses ---
 	pinnedStr := "no"
+	metaValStyle := lipgloss.NewStyle().Foreground(common.ColorText).Background(bg)
 	if sn.Pinned {
 		pinnedStr = lipgloss.NewStyle().
 			Foreground(common.ColorPink).
 			Background(bg).
 			Render("yes")
 	} else {
-		pinnedStr = lipgloss.NewStyle().
-			Foreground(common.ColorTextDim).
-			Background(bg).
-			Render("no")
+		pinnedStr = metaValStyle.Render("no")
 	}
 	metaLabel := lipgloss.NewStyle().
 		Foreground(common.ColorTextDim).
 		Background(bg)
 	metaLine := metaLabel.Render("Pinned: ") + pinnedStr +
-		metaLabel.Render("  Uses: ") +
-		lipgloss.NewStyle().Foreground(common.ColorTextSub).Background(bg).Render(fmt.Sprintf("%d", sn.UseCount))
+		metaLabel.Render("   Uses: ") +
+		metaValStyle.Render(fmt.Sprintf("%d", sn.UseCount))
 	lines = append(lines, metaLine)
 
 	// --- Pad lines to height and add left padding ---
@@ -907,14 +938,24 @@ func (m ManageModel) renderSnippetPreview(sn model.Snippet, width, height int) s
 // Status bar
 // ---------------------------------------------------------------------------
 
+func (m ManageModel) renderStatusSeparator() string {
+	sepChar := strings.Repeat("\u2500", m.width)
+	return lipgloss.NewStyle().
+		Foreground(common.ColorBorderDim).
+		Background(common.ColorBgSurface).
+		Width(m.width).
+		MaxWidth(m.width).
+		Render(sepChar)
+}
+
 func (m ManageModel) renderStatusBar() string {
 	keyStyle := lipgloss.NewStyle().
-		Foreground(common.ColorText).
-		Background(common.ColorBgOverlay).
+		Foreground(common.ColorMauve).
+		Background(common.ColorBgSurface).
 		Bold(true)
 	descStyle := lipgloss.NewStyle().
 		Foreground(common.ColorTextDim).
-		Background(common.ColorBgOverlay)
+		Background(common.ColorBgSurface)
 
 	var content string
 
@@ -925,7 +966,7 @@ func (m ManageModel) renderStatusBar() string {
 		}
 		confirmMsg := lipgloss.NewStyle().
 			Foreground(common.ColorRed).
-			Background(common.ColorBgOverlay).
+			Background(common.ColorBgSurface).
 			Bold(true).
 			Render(fmt.Sprintf("delete \"%s\"?", title))
 		hintMsg := descStyle.Render(" y to confirm, any other key to cancel")
@@ -961,7 +1002,7 @@ func (m ManageModel) renderStatusBar() string {
 		if m.copiedFeedback {
 			feedback := lipgloss.NewStyle().
 				Foreground(common.ColorGreen).
-				Background(common.ColorBgOverlay).
+				Background(common.ColorBgSurface).
 				Bold(true).
 				Render("Copied!")
 			content = "  " + feedback + descStyle.Render("  ") + content
@@ -971,7 +1012,7 @@ func (m ManageModel) renderStatusBar() string {
 	barStyle := lipgloss.NewStyle().
 		Width(m.width).
 		MaxWidth(m.width).
-		Background(common.ColorBgOverlay)
+		Background(common.ColorBgSurface)
 
 	return barStyle.Render(content)
 }
