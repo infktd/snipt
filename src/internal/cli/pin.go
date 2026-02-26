@@ -19,7 +19,7 @@ func newPinCmd() *cobra.Command {
 				return err
 			}
 			if len(results) == 0 {
-				fmt.Fprintf(os.Stderr, "snippet %q not found\n", args[0])
+				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
 				os.Exit(model.ExitNotFound)
 			}
 
@@ -28,7 +28,7 @@ func newPinCmd() *cobra.Command {
 				return fmt.Errorf("pin snippet: %w", err)
 			}
 
-			fmt.Printf("pinned %s\n", snippet.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "pinned %s\n", snippet.ID)
 			return nil
 		},
 	}
@@ -45,7 +45,7 @@ func newUnpinCmd() *cobra.Command {
 				return err
 			}
 			if len(results) == 0 {
-				fmt.Fprintf(os.Stderr, "snippet %q not found\n", args[0])
+				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
 				os.Exit(model.ExitNotFound)
 			}
 
@@ -54,7 +54,7 @@ func newUnpinCmd() *cobra.Command {
 				return fmt.Errorf("unpin snippet: %w", err)
 			}
 
-			fmt.Printf("unpinned %s\n", snippet.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "unpinned %s\n", snippet.ID)
 			return nil
 		},
 	}

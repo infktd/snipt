@@ -22,7 +22,7 @@ func newEditCmd() *cobra.Command {
 				return err
 			}
 			if len(results) == 0 {
-				fmt.Fprintf(os.Stderr, "snippet %q not found\n", args[0])
+				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
 				os.Exit(model.ExitNotFound)
 			}
 
@@ -69,13 +69,13 @@ func newEditCmd() *cobra.Command {
 			snippet.Content = string(data)
 			if err := store.Update(snippet); err != nil {
 				if db.IsNotFound(err) {
-					fmt.Fprintf(os.Stderr, "snippet %q not found\n", snippet.ID)
+					fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", snippet.ID)
 					os.Exit(model.ExitNotFound)
 				}
 				return fmt.Errorf("update snippet: %w", err)
 			}
 
-			fmt.Printf("updated %s\n", snippet.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "updated %s\n", snippet.ID)
 			return nil
 		},
 	}

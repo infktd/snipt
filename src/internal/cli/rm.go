@@ -23,7 +23,7 @@ func newRmCmd() *cobra.Command {
 				return err
 			}
 			if len(results) == 0 {
-				fmt.Fprintf(os.Stderr, "snippet %q not found\n", args[0])
+				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
 				os.Exit(model.ExitNotFound)
 			}
 
@@ -36,13 +36,13 @@ func newRmCmd() *cobra.Command {
 					return fmt.Errorf("non-TTY environment requires --force")
 				}
 
-				fmt.Printf("Delete %q (%s)? [y/N] ", snippet.Title, snippet.ID)
+				fmt.Fprintf(cmd.OutOrStdout(), "Delete %q (%s)? [y/N] ", snippet.Title, snippet.ID)
 				reader := bufio.NewReader(os.Stdin)
 				answer, _ := reader.ReadString('\n')
 				answer = strings.TrimSpace(strings.ToLower(answer))
 
 				if answer != "y" && answer != "yes" {
-					fmt.Println("cancelled")
+					fmt.Fprintln(cmd.OutOrStdout(), "cancelled")
 					return nil
 				}
 			}
@@ -51,7 +51,7 @@ func newRmCmd() *cobra.Command {
 				return fmt.Errorf("delete snippet: %w", err)
 			}
 
-			fmt.Printf("deleted %s\n", snippet.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "deleted %s\n", snippet.ID)
 			return nil
 		},
 	}

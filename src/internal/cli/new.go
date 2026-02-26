@@ -44,7 +44,7 @@ func newNewCmd() *cobra.Command {
 
 			content := string(data)
 			if strings.TrimSpace(content) == "" {
-				fmt.Println("empty content, nothing saved")
+				fmt.Fprintln(cmd.OutOrStdout(), "empty content, nothing saved")
 				return nil
 			}
 
@@ -58,7 +58,7 @@ func newNewCmd() *cobra.Command {
 				return fmt.Errorf("save snippet: %w", err)
 			}
 
-			fmt.Printf("saved %s\n", snippet.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "saved %s\n", snippet.ID)
 			return nil
 		},
 	}

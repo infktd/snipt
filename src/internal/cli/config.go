@@ -45,7 +45,7 @@ func newConfigPathCmd() *cobra.Command {
 		Use:   "path",
 		Short: "Print config file path",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(config.ConfigPath())
+			fmt.Fprintln(cmd.OutOrStdout(), config.ConfigPath())
 		},
 	}
 }

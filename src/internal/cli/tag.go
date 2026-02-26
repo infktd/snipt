@@ -19,7 +19,7 @@ func newTagCmd() *cobra.Command {
 				return err
 			}
 			if len(results) == 0 {
-				fmt.Fprintf(os.Stderr, "snippet %q not found\n", args[0])
+				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
 				os.Exit(model.ExitNotFound)
 			}
 
@@ -30,7 +30,7 @@ func newTagCmd() *cobra.Command {
 				return fmt.Errorf("add tags: %w", err)
 			}
 
-			fmt.Printf("tagged %s with %v\n", snippet.ID, tags)
+			fmt.Fprintf(cmd.OutOrStdout(), "tagged %s with %v\n", snippet.ID, tags)
 			return nil
 		},
 	}
@@ -47,7 +47,7 @@ func newUntagCmd() *cobra.Command {
 				return err
 			}
 			if len(results) == 0 {
-				fmt.Fprintf(os.Stderr, "snippet %q not found\n", args[0])
+				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
 				os.Exit(model.ExitNotFound)
 			}
 
@@ -58,7 +58,7 @@ func newUntagCmd() *cobra.Command {
 				return fmt.Errorf("remove tags: %w", err)
 			}
 
-			fmt.Printf("untagged %s from %v\n", snippet.ID, tags)
+			fmt.Fprintf(cmd.OutOrStdout(), "untagged %s from %v\n", snippet.ID, tags)
 			return nil
 		},
 	}

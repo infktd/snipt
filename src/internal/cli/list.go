@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"text/tabwriter"
 
@@ -41,17 +40,17 @@ func newListCmd() *cobra.Command {
 			}
 
 			if jsonOutput {
-				enc := json.NewEncoder(os.Stdout)
+				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(snippets)
 			}
 
 			if len(snippets) == 0 {
-				fmt.Println("no snippets found")
+				fmt.Fprintln(cmd.OutOrStdout(), "no snippets found")
 				return nil
 			}
 
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "ID\tTITLE\tLANG\tTAGS\tPIN\tUSES")
 
 			for _, s := range snippets {

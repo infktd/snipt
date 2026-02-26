@@ -24,14 +24,14 @@ func newGetCmd() *cobra.Command {
 			snippet, err := store.GetAndTrack(args[0])
 			if err != nil {
 				if db.IsNotFound(err) {
-					fmt.Fprintf(os.Stderr, "snippet %q not found\n", args[0])
+					fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
 					os.Exit(model.ExitNotFound)
 				}
 				return err
 			}
 
 			if idOnly {
-				fmt.Println(snippet.ID)
+				fmt.Fprintln(cmd.OutOrStdout(), snippet.ID)
 				return nil
 			}
 
@@ -39,11 +39,11 @@ func newGetCmd() *cobra.Command {
 				if err := clipboard.Write(snippet.Content); err != nil {
 					return fmt.Errorf("copy to clipboard: %w", err)
 				}
-				fmt.Fprintf(os.Stderr, "copied %s to clipboard\n", snippet.ID)
+				fmt.Fprintf(cmd.ErrOrStderr(), "copied %s to clipboard\n", snippet.ID)
 				return nil
 			}
 
-			fmt.Print(snippet.Content)
+			fmt.Fprint(cmd.OutOrStdout(), snippet.Content)
 			return nil
 		},
 	}

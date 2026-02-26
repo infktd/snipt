@@ -18,8 +18,10 @@ func newStatsCmd() *cobra.Command {
 				return fmt.Errorf("get stats: %w", err)
 			}
 
-			fmt.Printf("Total snippets: %d\n", stats.TotalSnippets)
-			fmt.Printf("Total tags:     %d\n", stats.TotalTags)
+			out := cmd.OutOrStdout()
+
+			fmt.Fprintf(out, "Total snippets: %d\n", stats.TotalSnippets)
+			fmt.Fprintf(out, "Total tags:     %d\n", stats.TotalTags)
 
 			if len(stats.Languages) > 0 {
 				// Sort languages by count descending.
@@ -39,7 +41,7 @@ func newStatsCmd() *cobra.Command {
 				for _, lc := range langs {
 					parts = append(parts, fmt.Sprintf("%s(%d)", lc.lang, lc.count))
 				}
-				fmt.Printf("Languages:      %s\n", strings.Join(parts, ", "))
+				fmt.Fprintf(out, "Languages:      %s\n", strings.Join(parts, ", "))
 			}
 
 			if stats.MostUsed != nil {
@@ -47,17 +49,17 @@ func newStatsCmd() *cobra.Command {
 				if title == "" {
 					title = stats.MostUsed.ID
 				}
-				fmt.Printf("Most used:      %s (%d uses)\n", title, stats.MostUsed.UseCount)
+				fmt.Fprintf(out, "Most used:      %s (%d uses)\n", title, stats.MostUsed.UseCount)
 			}
 
 			if len(stats.RecentlyAdded) > 0 {
-				fmt.Println("Recent:")
+				fmt.Fprintln(out, "Recent:")
 				for _, s := range stats.RecentlyAdded {
 					title := s.Title
 					if title == "" {
 						title = s.ID
 					}
-					fmt.Printf("  %s  %s  %s\n", s.ID, title, s.CreatedAt.Format("2006-01-02"))
+					fmt.Fprintf(out, "  %s  %s  %s\n", s.ID, title, s.CreatedAt.Format("2006-01-02"))
 				}
 			}
 

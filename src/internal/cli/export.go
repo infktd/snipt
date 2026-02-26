@@ -39,7 +39,7 @@ func newExportCmd() *cobra.Command {
 				return fmt.Errorf("list snippets: %w", err)
 			}
 
-			var out io.Writer = os.Stdout
+			var out io.Writer = cmd.OutOrStdout()
 			if outputFile != "" {
 				f, err := os.Create(outputFile)
 				if err != nil {

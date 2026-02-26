@@ -115,7 +115,7 @@ func newAddCmd() *cobra.Command {
 			if displayTitle == "" {
 				displayTitle = snippet.ID
 			}
-			fmt.Printf("saved %s (%s)\n", snippet.ID, displayTitle)
+			fmt.Fprintf(cmd.OutOrStdout(), "saved %s (%s)\n", snippet.ID, displayTitle)
 			return nil
 		},
 	}

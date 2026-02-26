@@ -32,6 +32,8 @@ func newImportCmd() *cobra.Command {
 
 			var imported, skipped, overwritten int
 
+			out := cmd.OutOrStdout()
+
 			for _, s := range snippets {
 				// Generate new ID if missing.
 				if s.ID == "" {
@@ -44,7 +46,7 @@ func newImportCmd() *cobra.Command {
 				if existing != nil {
 					if overwrite {
 						if dryRun {
-							fmt.Printf("[dry-run] would overwrite %s (%s)\n", s.ID, s.Title)
+							fmt.Fprintf(out, "[dry-run] would overwrite %s (%s)\n", s.ID, s.Title)
 							overwritten++
 							continue
 						}
@@ -55,14 +57,14 @@ func newImportCmd() *cobra.Command {
 						overwritten++
 					} else {
 						if dryRun {
-							fmt.Printf("[dry-run] would skip %s (%s) — already exists\n", s.ID, s.Title)
+							fmt.Fprintf(out, "[dry-run] would skip %s (%s) — already exists\n", s.ID, s.Title)
 						}
 						skipped++
 						continue
 					}
 				} else {
 					if dryRun {
-						fmt.Printf("[dry-run] would import %s (%s)\n", s.ID, s.Title)
+						fmt.Fprintf(out, "[dry-run] would import %s (%s)\n", s.ID, s.Title)
 						imported++
 						continue
 					}
@@ -77,7 +79,7 @@ func newImportCmd() *cobra.Command {
 			if dryRun {
 				prefix = "[dry-run] "
 			}
-			fmt.Printf("%simported: %d, skipped: %d, overwritten: %d\n", prefix, imported, skipped, overwritten)
+			fmt.Fprintf(out, "%simported: %d, skipped: %d, overwritten: %d\n", prefix, imported, skipped, overwritten)
 			return nil
 		},
 	}
