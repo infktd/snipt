@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/infktd/snipt/src/internal/clipboard"
-	"github.com/infktd/snipt/src/internal/db"
 	"github.com/infktd/snipt/src/internal/model"
 	"github.com/spf13/cobra"
 )
@@ -21,14 +20,17 @@ func newGetCmd() *cobra.Command {
 		Short: "Output snippet content",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			snippet, err := store.GetAndTrack(args[0])
+			snippet, err := resolveSnippet(cmd, args[0])
 			if err != nil {
-				if db.IsNotFound(err) {
-					fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
-					os.Exit(model.ExitNotFound)
-				}
 				return err
 			}
+			if snippet == nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
+				os.Exit(model.ExitNotFound)
+			}
+
+			// Bump use count.
+			_ = store.IncrementUseCount(snippet.ID)
 
 			if idOnly {
 				fmt.Fprintln(cmd.OutOrStdout(), snippet.ID)

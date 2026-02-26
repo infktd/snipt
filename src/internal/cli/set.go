@@ -30,16 +30,10 @@ func newSetCmd() *cobra.Command {
 				return fmt.Errorf("at least one flag is required: --title, --lang, --desc, --source")
 			}
 
-			results, err := store.ResolveRef(args[0])
+			snippet, err := resolveSnippet(cmd, args[0])
 			if err != nil {
 				return err
 			}
-			if len(results) == 0 {
-				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
-				os.Exit(model.ExitNotFound)
-			}
-
-			snippet := &results[0].Snippet
 
 			if cmd.Flags().Changed("title") {
 				snippet.Title = title

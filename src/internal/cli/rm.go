@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infktd/snipt/src/internal/model"
 	"github.com/spf13/cobra"
 )
 
@@ -18,16 +17,10 @@ func newRmCmd() *cobra.Command {
 		Short: "Delete a snippet",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			results, err := store.ResolveRef(args[0])
+			snippet, err := resolveSnippet(cmd, args[0])
 			if err != nil {
 				return err
 			}
-			if len(results) == 0 {
-				fmt.Fprintf(cmd.ErrOrStderr(), "snippet %q not found\n", args[0])
-				os.Exit(model.ExitNotFound)
-			}
-
-			snippet := &results[0].Snippet
 
 			if !force {
 				// Check if stdout is a TTY.
