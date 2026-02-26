@@ -5,6 +5,7 @@ import (
 
 	"github.com/infktd/snipt/src/internal/config"
 	"github.com/infktd/snipt/src/internal/db"
+	"github.com/infktd/snipt/src/internal/tui/manage"
 	"github.com/spf13/cobra"
 )
 
@@ -68,6 +69,13 @@ func NewRootCmd(version string) *cobra.Command {
 	root.AddCommand(newExportCmd())
 	root.AddCommand(newImportCmd())
 	root.AddCommand(newFindCmd())
+	root.AddCommand(newManageCmd())
+
+	// Default: launch manage TUI when no subcommand is given.
+	root.RunE = func(cmd *cobra.Command, args []string) error {
+		editor := cfg.ResolveEditor()
+		return manage.RunManage(store, editor)
+	}
 
 	return root
 }
