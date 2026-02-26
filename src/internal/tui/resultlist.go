@@ -192,7 +192,7 @@ func (r ResultList) renderRow(item ResultItem, selected bool, width int) string 
 	// For non-selected rows, ensure strict single-line by truncating.
 	// Use lipgloss MaxWidth for ANSI-safe truncation (content contains escape sequences).
 	if !selected && lipgloss.Width(content) > width {
-		content = lipgloss.NewStyle().MaxWidth(width - 1).Render(content) + "\u2026"
+		content = lipgloss.NewStyle().MaxWidth(width-1).Render(content) + "\u2026"
 	}
 
 	// Apply row-level styling.
