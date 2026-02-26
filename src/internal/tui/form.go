@@ -65,47 +65,32 @@ var (
 			MarginTop(1)
 )
 
+func newStyledInput(placeholder string, charLimit, width int) textinput.Model {
+	ti := textinput.New()
+	ti.Placeholder = placeholder
+	ti.CharLimit = charLimit
+	ti.SetWidth(width)
+	s := ti.Styles()
+	s.Focused.Prompt = lipgloss.NewStyle().Foreground(ColorMauve)
+	s.Focused.Text = lipgloss.NewStyle().Foreground(ColorText)
+	s.Focused.Placeholder = lipgloss.NewStyle().Foreground(ColorTextMuted)
+	s.Blurred.Prompt = lipgloss.NewStyle().Foreground(ColorTextDim)
+	s.Blurred.Text = lipgloss.NewStyle().Foreground(ColorTextDim)
+	s.Blurred.Placeholder = lipgloss.NewStyle().Foreground(ColorTextMuted)
+	ti.SetStyles(s)
+	return ti
+}
+
 func newFormModel(defaultLang string) formModel {
 	inputs := make([]textinput.Model, fieldCount)
 
-	// Title field
-	inputs[fieldTitle] = textinput.New()
-	inputs[fieldTitle].Placeholder = "My snippet title"
-	inputs[fieldTitle].CharLimit = 120
-	inputs[fieldTitle].Width = 40
-	inputs[fieldTitle].PromptStyle = lipgloss.NewStyle().Foreground(ColorMauve)
-	inputs[fieldTitle].TextStyle = lipgloss.NewStyle().Foreground(ColorText)
-	inputs[fieldTitle].PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorTextMuted)
-
-	// Language field
-	inputs[fieldLanguage] = textinput.New()
-	inputs[fieldLanguage].Placeholder = "go, python, bash..."
-	inputs[fieldLanguage].CharLimit = 30
-	inputs[fieldLanguage].Width = 40
-	inputs[fieldLanguage].PromptStyle = lipgloss.NewStyle().Foreground(ColorMauve)
-	inputs[fieldLanguage].TextStyle = lipgloss.NewStyle().Foreground(ColorText)
-	inputs[fieldLanguage].PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorTextMuted)
+	inputs[fieldTitle] = newStyledInput("My snippet title", 120, 40)
+	inputs[fieldLanguage] = newStyledInput("go, python, bash...", 30, 40)
 	if defaultLang != "" {
 		inputs[fieldLanguage].SetValue(defaultLang)
 	}
-
-	// Tags field
-	inputs[fieldTags] = textinput.New()
-	inputs[fieldTags].Placeholder = "api, utils, auth (comma-separated)"
-	inputs[fieldTags].CharLimit = 200
-	inputs[fieldTags].Width = 40
-	inputs[fieldTags].PromptStyle = lipgloss.NewStyle().Foreground(ColorMauve)
-	inputs[fieldTags].TextStyle = lipgloss.NewStyle().Foreground(ColorText)
-	inputs[fieldTags].PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorTextMuted)
-
-	// Description field
-	inputs[fieldDescription] = textinput.New()
-	inputs[fieldDescription].Placeholder = "Brief description of this snippet"
-	inputs[fieldDescription].CharLimit = 300
-	inputs[fieldDescription].Width = 40
-	inputs[fieldDescription].PromptStyle = lipgloss.NewStyle().Foreground(ColorMauve)
-	inputs[fieldDescription].TextStyle = lipgloss.NewStyle().Foreground(ColorText)
-	inputs[fieldDescription].PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorTextMuted)
+	inputs[fieldTags] = newStyledInput("api, utils, auth (comma-separated)", 200, 40)
+	inputs[fieldDescription] = newStyledInput("Brief description of this snippet", 300, 40)
 
 	// Focus the first field
 	inputs[fieldTitle].Focus()
@@ -117,12 +102,12 @@ func newFormModel(defaultLang string) formModel {
 }
 
 func (m formModel) Init() tea.Cmd {
-	return textinput.Blink
+	return nil
 }
 
 func (m formModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			m.result.Cancelled = true
@@ -180,9 +165,9 @@ func (m *formModel) updateInputs(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m formModel) View() string {
+func (m formModel) View() tea.View {
 	if m.done {
-		return ""
+		return tea.NewView("")
 	}
 
 	labels := []string{"Title", "Language", "Tags", "Description"}
@@ -208,7 +193,7 @@ func (m formModel) View() string {
 	form := borderStyle.Render(fields.String())
 	hint := formHintStyle.Render("tab/shift+tab: navigate  enter: next/submit  esc: cancel")
 
-	return fmt.Sprintf("\n%s\n%s\n%s\n", title, form, hint)
+	return tea.NewView(fmt.Sprintf("\n%s\n%s\n%s\n", title, form, hint))
 }
 
 // RunForm launches a Bubbletea form to collect snippet metadata.
