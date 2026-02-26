@@ -117,18 +117,21 @@ func (r ResultList) View() string {
 	for i := start; i < end; i++ {
 		item := r.items[i]
 		selected := i == r.cursor
-		row := r.renderRow(item, selected, rowWidth)
 
 		if selected {
+			row := r.renderRow(item, true, rowWidth)
 			preview := r.renderPreview(item.Snippet, previewWidth)
-			// Join row and preview side-by-side.
-			sep := lipgloss.NewStyle().
-				Foreground(ColorBorderDim).
-				Render(" | ")
+			sepStyle := lipgloss.NewStyle().Foreground(ColorBorderDim)
+			sep := sepStyle.Render(" \u2502 ")
 			combined := lipgloss.JoinHorizontal(lipgloss.Top, row, sep, preview)
-			rows = append(rows, combined)
+			// Full-width background
+			fullStyle := lipgloss.NewStyle().
+				Width(r.width).
+				MaxWidth(r.width).
+				Background(ColorBgSelected)
+			rows = append(rows, fullStyle.Render(combined))
 		} else {
-			// Pad non-selected rows to the full width.
+			row := r.renderRow(item, false, r.width)
 			rows = append(rows, row)
 		}
 	}
@@ -186,12 +189,19 @@ func (r ResultList) renderRow(item ResultItem, selected bool, width int) string 
 
 	content := strings.Join(parts, " ")
 
+	// For non-selected rows, ensure strict single-line by truncating.
+	if !selected && lipgloss.Width(content) > width {
+		runes := []rune(content)
+		for lipgloss.Width(string(runes)) > width-1 {
+			runes = runes[:len(runes)-1]
+		}
+		content = string(runes) + "\u2026"
+	}
+
 	// Apply row-level styling.
 	rowStyle := lipgloss.NewStyle().Width(width).MaxWidth(width)
 	if selected {
-		rowStyle = rowStyle.
-			Background(ColorBgSelected).
-			Bold(true)
+		rowStyle = rowStyle.Bold(true)
 	}
 
 	return rowStyle.Render(content)
@@ -231,6 +241,7 @@ func (r ResultList) renderPreview(sn model.Snippet, width int) string {
 
 	previewStyle := lipgloss.NewStyle().
 		Foreground(ColorTextDim).
+		Background(ColorBgSelected).
 		Width(width)
 
 	lines := strings.Split(sn.Content, "\n")
