@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 
@@ -12,21 +13,55 @@ type Config struct {
 	Editor          string `toml:"editor"`
 	DefaultLanguage string `toml:"default_language"`
 	Theme           string `toml:"theme"`
+
+	General GeneralConfig `toml:"general"`
+	Find    FindConfig    `toml:"find"`
+}
+
+// GeneralConfig holds general app settings.
+type GeneralConfig struct {
+	Hotkey string `toml:"hotkey"`
+}
+
+// FindConfig holds find palette preferences.
+type FindConfig struct {
+	Preview         bool   `toml:"preview"`
+	Sort            string `toml:"sort"`
+	CopyToClipboard bool   `toml:"copy_to_clipboard"`
 }
 
 const defaultConfig = `editor = ""
 default_language = "text"
 theme = "catppuccin-mocha"
+
+[general]
+hotkey = "cmd+shift+s"
+
+[find]
+preview = false
+sort = "recent"
+copy_to_clipboard = true
 `
+
+// DefaultConfig returns a Config with sensible defaults.
+func DefaultConfig() *Config {
+	return &Config{
+		DefaultLanguage: "text",
+		Theme:           "catppuccin-mocha",
+		General: GeneralConfig{
+			Hotkey: "cmd+shift+s",
+		},
+		Find: FindConfig{
+			Sort:            "recent",
+			CopyToClipboard: true,
+		},
+	}
+}
 
 // Load reads the config file, creating it with defaults if it doesn't exist.
 func Load() (*Config, error) {
 	path := ConfigPath()
-
-	cfg := &Config{
-		DefaultLanguage: "text",
-		Theme:           "catppuccin-mocha",
-	}
+	cfg := DefaultConfig()
 
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -47,6 +82,22 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// Save writes the config to disk at ConfigPath().
+func (c *Config) Save() error {
+	path := ConfigPath()
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	enc := toml.NewEncoder(&buf)
+	if err := enc.Encode(c); err != nil {
+		return err
+	}
+	return os.WriteFile(path, buf.Bytes(), 0o644)
 }
 
 // ResolveEditor returns the editor to use, following the chain:

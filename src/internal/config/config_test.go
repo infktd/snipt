@@ -112,3 +112,82 @@ func TestConfigPath(t *testing.T) {
 		t.Errorf("expected %q, got %q", expected, path)
 	}
 }
+
+func TestLoad_NewSections(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfgDir := filepath.Join(dir, "snipt")
+	os.MkdirAll(cfgDir, 0o755)
+	os.WriteFile(filepath.Join(cfgDir, "config.toml"), []byte(`
+editor = "nvim"
+default_language = "go"
+theme = "catppuccin-mocha"
+
+[general]
+hotkey = "cmd+shift+s"
+
+[find]
+preview = true
+sort = "alpha"
+copy_to_clipboard = false
+`), 0o644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.General.Hotkey != "cmd+shift+s" {
+		t.Errorf("expected hotkey=cmd+shift+s, got %q", cfg.General.Hotkey)
+	}
+	if cfg.Find.Preview != true {
+		t.Error("expected find.preview=true")
+	}
+	if cfg.Find.Sort != "alpha" {
+		t.Errorf("expected find.sort=alpha, got %q", cfg.Find.Sort)
+	}
+	if cfg.Find.CopyToClipboard != false {
+		t.Error("expected find.copy_to_clipboard=false")
+	}
+}
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.General.Hotkey != "cmd+shift+s" {
+		t.Errorf("expected default hotkey=cmd+shift+s, got %q", cfg.General.Hotkey)
+	}
+	if cfg.Find.Sort != "recent" {
+		t.Errorf("expected default sort=recent, got %q", cfg.Find.Sort)
+	}
+	if cfg.Find.CopyToClipboard != true {
+		t.Error("expected default copy_to_clipboard=true")
+	}
+}
+
+func TestSave(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg := DefaultConfig()
+	cfg.Editor = "code"
+	cfg.Find.Sort = "alpha"
+
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load after save failed: %v", err)
+	}
+	if loaded.Editor != "code" {
+		t.Errorf("expected editor=code after save, got %q", loaded.Editor)
+	}
+	if loaded.Find.Sort != "alpha" {
+		t.Errorf("expected find.sort=alpha after save, got %q", loaded.Find.Sort)
+	}
+	if loaded.Find.CopyToClipboard != true {
+		t.Error("expected copy_to_clipboard preserved after save")
+	}
+}
