@@ -8,3 +8,8 @@ snipt
 # Frontend
 node_modules/
 src/frontend/dist/
+src/frontend/package.json.md5
+
+# Wails
+src/frontend/src/wailsjs/
+src/cmd/snipt-gui/build/

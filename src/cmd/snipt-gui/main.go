@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"log"
 
 	"github.com/wailsapp/wails/v2"
@@ -9,13 +8,11 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
+	"github.com/infktd/snipt/src/frontend"
 	"github.com/infktd/snipt/src/internal/config"
 	"github.com/infktd/snipt/src/internal/db"
 	"github.com/infktd/snipt/src/internal/gui"
 )
-
-//go:embed all:../../frontend/dist
-var assets embed.FS
 
 func main() {
 	dbPath := config.DBPath("")
@@ -34,7 +31,7 @@ func main() {
 		MinWidth:  800,
 		MinHeight: 500,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets: frontend.Assets,
 		},
 		BackgroundColour: &options.RGBA{R: 13, G: 13, B: 20, A: 255},
 		OnStartup:        app.Startup,
