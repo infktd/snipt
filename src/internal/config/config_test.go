@@ -165,6 +165,67 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
+func TestLoad_SyncSection(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfgDir := filepath.Join(dir, "snipt")
+	os.MkdirAll(cfgDir, 0o755)
+	os.WriteFile(filepath.Join(cfgDir, "config.toml"), []byte(`
+editor = "nvim"
+
+[sync]
+gist_id = "abc123"
+token = "ghp_test"
+last_sync = "2026-02-27T12:00:00Z"
+username = "testuser"
+`), 0o644)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.Sync.GistID != "abc123" {
+		t.Errorf("expected gist_id=abc123, got %q", cfg.Sync.GistID)
+	}
+	if cfg.Sync.Token != "ghp_test" {
+		t.Errorf("expected token=ghp_test, got %q", cfg.Sync.Token)
+	}
+	if cfg.Sync.LastSync != "2026-02-27T12:00:00Z" {
+		t.Errorf("expected last_sync=2026-02-27T12:00:00Z, got %q", cfg.Sync.LastSync)
+	}
+	if cfg.Sync.Username != "testuser" {
+		t.Errorf("expected username=testuser, got %q", cfg.Sync.Username)
+	}
+}
+
+func TestSave_SyncSection(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg := DefaultConfig()
+	cfg.Sync.GistID = "def456"
+	cfg.Sync.Token = "ghp_save"
+	cfg.Sync.LastSync = "2026-02-27T14:00:00Z"
+	cfg.Sync.Username = "saveuser"
+
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load after save failed: %v", err)
+	}
+	if loaded.Sync.GistID != "def456" {
+		t.Errorf("expected gist_id=def456 after save, got %q", loaded.Sync.GistID)
+	}
+	if loaded.Sync.Token != "ghp_save" {
+		t.Errorf("expected token=ghp_save after save, got %q", loaded.Sync.Token)
+	}
+}
+
 func TestSave(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)

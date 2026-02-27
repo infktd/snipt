@@ -16,6 +16,7 @@ type Config struct {
 
 	General GeneralConfig `toml:"general"`
 	Find    FindConfig    `toml:"find"`
+	Sync    SyncConfig    `toml:"sync"`
 }
 
 // GeneralConfig holds general app settings.
@@ -28,6 +29,14 @@ type FindConfig struct {
 	Preview         bool   `toml:"preview"`
 	Sort            string `toml:"sort"`
 	CopyToClipboard bool   `toml:"copy_to_clipboard"`
+}
+
+// SyncConfig holds GitHub Gist sync settings.
+type SyncConfig struct {
+	GistID   string `toml:"gist_id"`
+	Token    string `toml:"token"`
+	LastSync string `toml:"last_sync"`
+	Username string `toml:"username"`
 }
 
 const defaultConfig = `editor = ""
