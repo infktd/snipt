@@ -4,6 +4,7 @@ import { Sidebar } from "./components/Sidebar";
 import { DetailPane } from "./components/DetailPane";
 import { StatusBar } from "./components/StatusBar";
 import { FindPalette } from "./components/FindPalette";
+import { Settings } from "./components/Settings";
 import { useDebounce } from "./hooks/useDebounce";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import type { SearchBarHandle } from "./components/SearchBar";
@@ -20,7 +21,7 @@ import {
   SetPinned,
   IncrementUseCount,
 } from "./wailsjs/go/gui/App";
-import { ClipboardSetText } from "./wailsjs/runtime/runtime";
+import { ClipboardSetText, EventsOn } from "./wailsjs/runtime/runtime";
 
 function AppContent() {
   const state = useAppState();
@@ -54,6 +55,14 @@ function AppContent() {
       )
       .catch((err) => console.error("Search failed:", err));
   }, [debouncedQuery, dispatch]);
+
+  // Listen for tray "open-settings" event
+  useEffect(() => {
+    const cancel = EventsOn("open-settings", () => {
+      dispatch({ type: "OPEN_SETTINGS" });
+    });
+    return cancel;
+  }, [dispatch]);
 
   // Ordered display list and IDs
   const displayList: Snippet[] = useMemo(
@@ -252,22 +261,28 @@ function AppContent() {
             dispatch({ type: "SET_CREATE_MODE", creating: true })
           }
           searchBarRef={searchBarRef}
+          onOpenSettings={() => dispatch({ type: "OPEN_SETTINGS" })}
+          settingsActive={state.detailView.kind === "settings"}
         />
-        <DetailPane
-          snippet={singleSelected}
-          selectedCount={selectedSnippets.length}
-          editMode={state.editMode}
-          createMode={state.createMode}
-          onUpdate={handleUpdate}
-          onUpdateTags={handleUpdateTags}
-          onDelete={handleDeleteSelected}
-          onTogglePin={handleTogglePinSelected}
-          onBulkCopy={handleCopyContent}
-          onCreate={handleCreate}
-          onSetEditMode={(editing) =>
-            dispatch({ type: "SET_EDIT_MODE", editing })
-          }
-        />
+        {state.detailView.kind === "settings" ? (
+          <Settings />
+        ) : (
+          <DetailPane
+            snippet={singleSelected}
+            selectedCount={selectedSnippets.length}
+            editMode={state.editMode}
+            createMode={state.createMode}
+            onUpdate={handleUpdate}
+            onUpdateTags={handleUpdateTags}
+            onDelete={handleDeleteSelected}
+            onTogglePin={handleTogglePinSelected}
+            onBulkCopy={handleCopyContent}
+            onCreate={handleCreate}
+            onSetEditMode={(editing) =>
+              dispatch({ type: "SET_EDIT_MODE", editing })
+            }
+          />
+        )}
       </div>
 
       <StatusBar

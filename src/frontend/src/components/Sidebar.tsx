@@ -1,7 +1,7 @@
 import { SearchBar, type SearchBarHandle } from "./SearchBar";
 import { SnippetList } from "./SnippetList";
 import { NewSnippetButton } from "./NewSnippetButton";
-import { C } from "../styles/colors";
+import { C, BODY } from "../styles/colors";
 import type { Snippet, SearchResult } from "../state/types";
 
 interface SidebarProps {
@@ -13,6 +13,8 @@ interface SidebarProps {
   onSelect: (id: string, e: React.MouseEvent) => void;
   onNewSnippet: () => void;
   searchBarRef?: React.Ref<SearchBarHandle>;
+  onOpenSettings: () => void;
+  settingsActive: boolean;
 }
 
 export function Sidebar({
@@ -24,6 +26,8 @@ export function Sidebar({
   onSelect,
   onNewSnippet,
   searchBarRef,
+  onOpenSettings,
+  settingsActive,
 }: SidebarProps) {
   return (
     <div
@@ -46,7 +50,28 @@ export function Sidebar({
         selectedIds={selectedIds}
         onSelect={onSelect}
       />
-      <NewSnippetButton onClick={onNewSnippet} />
+      <div style={{ display: "flex", borderTop: `1px solid ${C.borderSubtle}` }}>
+        <button
+          onClick={onOpenSettings}
+          style={{
+            padding: "10px 14px",
+            background: settingsActive ? C.bgSurface : "transparent",
+            border: "none",
+            borderRight: `1px solid ${C.borderSubtle}`,
+            color: settingsActive ? C.mauve : C.textDim,
+            fontFamily: BODY,
+            fontSize: 13,
+            cursor: "pointer",
+            transition: "color 0.12s ease",
+          }}
+          onMouseEnter={(e) => { if (!settingsActive) e.currentTarget.style.color = C.textSub; }}
+          onMouseLeave={(e) => { if (!settingsActive) e.currentTarget.style.color = C.textDim; }}
+          title="Settings"
+        >
+          ⚙
+        </button>
+        <NewSnippetButton onClick={onNewSnippet} />
+      </div>
     </div>
   );
 }

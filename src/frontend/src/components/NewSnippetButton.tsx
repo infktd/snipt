@@ -9,11 +9,10 @@ export function NewSnippetButton({ onClick }: NewSnippetButtonProps) {
     <button
       onClick={onClick}
       style={{
-        width: "100%",
+        flex: 1,
         padding: "10px 14px",
         background: "transparent",
         border: "none",
-        borderTop: `1px solid ${C.borderSubtle}`,
         color: C.textDim,
         fontFamily: BODY,
         fontSize: 13,

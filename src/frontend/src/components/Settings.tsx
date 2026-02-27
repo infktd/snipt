@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { C, MONO, BODY } from "../styles/colors";
+import { C, MONO } from "../styles/colors";
 import {
   GetConfig,
   UpdateConfig,
