@@ -1,9 +1,13 @@
 package gui
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/infktd/snipt/src/internal/config"
 	"github.com/infktd/snipt/src/internal/db"
 	"github.com/infktd/snipt/src/internal/model"
+	"github.com/infktd/snipt/src/internal/sync"
 )
 
 // SnippetService exposes snippet operations to the Wails v3 frontend.
@@ -112,4 +116,84 @@ func (s *SnippetService) GetDBPath() string {
 
 func (s *SnippetService) GetVersion() string {
 	return s.version
+}
+
+// SyncSetup validates a token, creates a Gist, does initial push, and saves config.
+func (s *SnippetService) SyncSetup(token string) (*sync.SyncResult, error) {
+	client := sync.NewGistClient(token)
+	engine := sync.NewSyncEngine(s.store, client, &config.SyncConfig{})
+
+	syncCfg, err := engine.Setup(token)
+	if err != nil {
+		return nil, err
+	}
+
+	appCfg, err := config.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+	appCfg.Sync = *syncCfg
+	if err := appCfg.Save(); err != nil {
+		return nil, fmt.Errorf("save config: %w", err)
+	}
+
+	return &sync.SyncResult{Pushed: 0}, nil
+}
+
+// SyncNow performs a bidirectional sync and updates last_sync.
+func (s *SnippetService) SyncNow() (*sync.SyncResult, error) {
+	appCfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	if appCfg.Sync.GistID == "" {
+		return nil, fmt.Errorf("sync not configured")
+	}
+
+	client := sync.NewGistClient(appCfg.Sync.Token)
+	engine := sync.NewSyncEngine(s.store, client, &appCfg.Sync)
+
+	result, err := engine.Sync()
+	if err != nil {
+		return nil, err
+	}
+
+	appCfg.Sync.LastSync = time.Now().UTC().Format(time.RFC3339)
+	appCfg.Save()
+
+	return result, nil
+}
+
+// SyncStatus returns the current sync configuration state.
+func (s *SnippetService) SyncStatus() (*sync.SyncStatus, error) {
+	appCfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	return &sync.SyncStatus{
+		Configured: appCfg.Sync.GistID != "",
+		GistID:     appCfg.Sync.GistID,
+		GistURL:    fmt.Sprintf("https://gist.github.com/%s", appCfg.Sync.GistID),
+		LastSync:   appCfg.Sync.LastSync,
+		Username:   appCfg.Sync.Username,
+	}, nil
+}
+
+// SyncDisconnect removes the sync configuration.
+func (s *SnippetService) SyncDisconnect() error {
+	appCfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	appCfg.Sync = config.SyncConfig{}
+	return appCfg.Save()
+}
+
+// IsSyncConfigured returns whether sync is set up.
+func (s *SnippetService) IsSyncConfigured() (bool, error) {
+	appCfg, err := config.Load()
+	if err != nil {
+		return false, err
+	}
+	return appCfg.Sync.GistID != "", nil
 }
