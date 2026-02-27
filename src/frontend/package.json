@@ -21,6 +21,7 @@
     "@codemirror/state": "^6.5.4",
     "@codemirror/view": "^6.39.15",
     "@lezer/highlight": "^1.2.3",
+    "@wailsio/runtime": "^3.0.0-alpha.79",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

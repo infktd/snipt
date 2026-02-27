@@ -6,8 +6,8 @@ import {
   GetStats,
   GetDBPath,
   GetVersion,
-} from "../wailsjs/go/gui/App";
-import { BrowserOpenURL } from "../wailsjs/runtime/runtime";
+} from "../bindings/snippetservice";
+import { Browser } from "@wailsio/runtime";
 
 interface Config {
   Editor: string;
@@ -52,7 +52,7 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
   useEffect(() => {
     loadConfig();
     GetStats()
-      .then((s) => setStats(s))
+      .then((s: any) => setStats(s))
       .catch(console.error);
     GetDBPath()
       .then(setDbPath)
@@ -214,7 +214,7 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
               color: C.mauve,
               cursor: "pointer",
             }}
-            onClick={() => BrowserOpenURL("https://github.com/infktd/snipt")}
+            onClick={() => Browser.OpenURL("https://github.com/infktd/snipt")}
           >
             github.com/infktd/snipt
           </span>

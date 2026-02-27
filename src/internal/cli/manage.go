@@ -23,7 +23,7 @@ func newManageCmd() *cobra.Command {
 				}
 				return nil
 			}
-			return gui.LaunchGUI(store, "manage", appVersion)
+			return gui.LaunchGUI(store, appVersion)
 		},
 	}
 

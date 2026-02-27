@@ -1,38 +1,61 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { C, BODY, MONO } from "../styles/colors";
+import { C } from "../styles/colors";
 import { langColors, highlightTitle } from "../utils/snippetDisplay";
 import {
   GetConfig,
   ListSnippets,
   SearchSnippets,
   IncrementUseCount,
-} from "../wailsjs/go/gui/App";
-import { ClipboardSetText, Quit } from "../wailsjs/runtime/runtime";
+} from "../bindings/snippetservice";
+import { Clipboard, Events } from "@wailsio/runtime";
 import { useDebounce } from "../hooks/useDebounce";
 import type { Snippet, SearchResult } from "../state/types";
 
 export function FindPalette() {
   const [query, setQuery] = useState("");
   const [snippets, setSnippets] = useState<Snippet[]>([]);
-  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(
-    null
-  );
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(query, 150);
 
-  // Load all snippets on mount with sort from config
-  useEffect(() => {
+  // Load snippets
+  const loadSnippets = useCallback(() => {
     GetConfig()
-      .then((cfg) => {
+      .then((cfg: any) => {
         const sort = cfg.Find?.Sort || "recent";
-        return ListSnippets({ Sort: sort } as never);
+        return ListSnippets({ Sort: sort });
       })
-      .then((s) => setSnippets(s ?? []))
-      .catch((err) => console.error("Failed to load snippets:", err));
-    inputRef.current?.focus();
+      .then((s: any) => setSnippets(s ?? []))
+      .catch((err: any) => console.error("Failed to load snippets:", err));
   }, []);
+
+  // Load on mount
+  // Transparent background so CSS border-radius shows through to desktop
+  useEffect(() => {
+    document.body.style.background = "transparent";
+    document.documentElement.style.background = "transparent";
+  }, []);
+
+  useEffect(() => {
+    loadSnippets();
+    inputRef.current?.focus();
+  }, [loadSnippets]);
+
+  // Reset state when palette is shown from the tray
+  useEffect(() => {
+    const cancel = Events.On("find-opened", () => {
+      setQuery("");
+      setActiveIndex(0);
+      setSearchResults(null);
+      setCopiedId(null);
+      loadSnippets();
+      inputRef.current?.focus();
+    });
+    return cancel;
+  }, [loadSnippets]);
 
   // Search when debounced query changes
   useEffect(() => {
@@ -41,7 +64,7 @@ export function FindPalette() {
       setActiveIndex(0);
       return;
     }
-    SearchSnippets(debouncedQuery).then((results) => {
+    SearchSnippets(debouncedQuery).then((results: any) => {
       setSearchResults(results ?? []);
       setActiveIndex(0);
     });
@@ -58,15 +81,16 @@ export function FindPalette() {
     return result?.TitleIndices ?? null;
   };
 
-  // Copy snippet content and close
+  // Copy snippet content, flash green, then hide palette
   const handleSelect = useCallback(async (snippet: Snippet) => {
+    setCopiedId(snippet.ID);
     try {
-      await ClipboardSetText(snippet.Content);
+      await Clipboard.SetText(snippet.Content);
     } catch {
       await navigator.clipboard.writeText(snippet.Content);
     }
     IncrementUseCount(snippet.ID).catch(() => {});
-    Quit();
+    setTimeout(() => Events.Emit("find-done"), 180);
   }, []);
 
   // Keyboard navigation
@@ -85,7 +109,7 @@ export function FindPalette() {
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
-        Quit();
+        Events.Emit("find-done");
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -101,230 +125,91 @@ export function FindPalette() {
   }, [activeIndex]);
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        background: C.bgSurface,
-        overflow: "hidden",
-      }}
-    >
-      {/* Search header — draggable region */}
-      <div
-        style={
-          {
-            padding: "14px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            borderBottom: `1px solid ${C.borderSubtle}`,
-            "--wails-draggable": "drag",
-            WebkitAppRegion: "drag",
-          } as React.CSSProperties
-        }
-      >
-        <span
-          style={{
-            background: `linear-gradient(135deg, ${C.pink}, ${C.mauve})`,
-            color: C.bg,
-            fontFamily: MONO,
-            fontWeight: 700,
-            fontSize: 10,
-            padding: "3px 8px",
-            borderRadius: 5,
-            letterSpacing: "0.5px",
-            flexShrink: 0,
-            // @ts-expect-error Wails drag property
-            WebkitAppRegion: "no-drag",
-          }}
+    <div className="find-palette">
+      <div className="find-palette-inner">
+        {/* Search bar — draggable region */}
+        <div
+          className="find-search"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         >
-          SNIPT
-        </span>
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search snippets..."
-          style={
-            {
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: C.text,
-              fontFamily: BODY,
-              fontSize: 14,
-              WebkitAppRegion: "no-drag",
-            } as React.CSSProperties
-          }
-        />
-        <span
-          style={{
-            color: C.textDim,
-            fontFamily: MONO,
-            fontSize: 11,
-            flexShrink: 0,
-          }}
-        >
-          {searchResults
-            ? `${displayList.length}/${snippets.length}`
-            : `${snippets.length}`}
-        </span>
-      </div>
+          <span
+            className="snipt-badge"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          >
+            SNIPT
+          </span>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search snippets..."
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          />
+          <span className="result-count">
+            {searchResults
+              ? `${displayList.length}/${snippets.length}`
+              : `${snippets.length}`}
+          </span>
+        </div>
 
-      {/* Results list */}
-      <div
-        ref={listRef}
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          scrollbarWidth: "thin" as const,
-          scrollbarColor: `${C.border} transparent`,
-        }}
-      >
-        {displayList.map((snippet, i) => {
-          const isActive = i === activeIndex;
-          const badgeColor =
-            langColors[snippet.Language.toLowerCase()] ?? C.textDim;
-          return (
-            <div
-              key={snippet.ID}
-              onClick={() => handleSelect(snippet)}
-              onMouseEnter={() => setActiveIndex(i)}
-              style={{
-                padding: "8px 16px",
-                cursor: "pointer",
-                background: isActive ? "#3e3e5e" : "transparent",
-                borderLeft: `3px solid ${isActive ? C.pink : "transparent"}`,
-                transition: "background 0.08s ease",
-              }}
-            >
+        {/* Results list */}
+        <div ref={listRef} className="find-results">
+          {displayList.map((snippet, i) => {
+            const isActive = i === activeIndex;
+            const isCopied = copiedId === snippet.ID;
+            const badgeColor =
+              langColors[snippet.Language.toLowerCase()] ?? C.textDim;
+            return (
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontFamily: MONO,
-                  fontSize: 13,
-                  fontWeight: isActive ? 500 : 400,
-                  color: C.text,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
+                key={snippet.ID}
+                className={`find-result-row${isActive ? " selected" : ""}${isCopied ? " copied" : ""}`}
+                onClick={() => handleSelect(snippet)}
+                onMouseEnter={() => setActiveIndex(i)}
               >
-                {snippet.Pinned && (
-                  <span
-                    style={{ color: C.yellow, fontSize: 8, flexShrink: 0 }}
-                  >
-                    ●
-                  </span>
-                )}
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                {snippet.Pinned && <span className="pin">●</span>}
+                <span className="title">
                   {highlightTitle(snippet.Title, getTitleIndices(snippet.ID))}
                 </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  marginTop: 3,
-                  paddingLeft: 3,
-                }}
-              >
                 {snippet.Language && (
                   <span
+                    className="lang"
                     style={{
                       color: badgeColor,
-                      fontFamily: MONO,
-                      fontSize: 10,
-                      padding: "1px 6px",
-                      borderRadius: 10,
-                      background: `${badgeColor}1A`,
-                      flexShrink: 0,
+                      background: `${badgeColor}14`,
                     }}
                   >
                     {snippet.Language}
                   </span>
                 )}
                 {snippet.Tags?.map((tag) => (
-                  <span
-                    key={tag}
-                    style={{
-                      color: C.textDim,
-                      fontFamily: MONO,
-                      fontSize: 10,
-                    }}
-                  >
+                  <span key={tag} className="tag">
                     #{tag}
                   </span>
                 ))}
               </div>
-            </div>
-          );
-        })}
-        {displayList.length === 0 && (
-          <div
-            style={{
-              padding: "24px 16px",
-              color: C.textDim,
-              fontSize: 13,
-              textAlign: "center",
-              fontFamily: BODY,
-            }}
-          >
-            No snippets found
-          </div>
-        )}
-      </div>
+            );
+          })}
+          {displayList.length === 0 && (
+            <div className="find-empty">No snippets found</div>
+          )}
+        </div>
 
-      {/* Footer hints */}
-      <div
-        style={{
-          padding: "8px 16px",
-          borderTop: `1px solid ${C.borderSubtle}`,
-          display: "flex",
-          gap: 14,
-          alignItems: "center",
-        }}
-      >
-        <span style={hintStyle}>
-          <kbd style={kbdStyle}>↑↓</kbd>
-          <span style={labelStyle}>navigate</span>
-        </span>
-        <span style={hintStyle}>
-          <kbd style={kbdStyle}>enter</kbd>
-          <span style={labelStyle}>copy</span>
-        </span>
-        <span style={hintStyle}>
-          <kbd style={kbdStyle}>esc</kbd>
-          <span style={labelStyle}>close</span>
-        </span>
+        {/* Footer hints */}
+        <div className="find-footer">
+          <span className="key-hint">
+            <kbd>↑↓</kbd>
+            <span className="key-label">navigate</span>
+          </span>
+          <span className="key-hint">
+            <kbd>enter</kbd>
+            <span className="key-label">copy</span>
+          </span>
+          <span className="key-hint">
+            <kbd>esc</kbd>
+            <span className="key-label">close</span>
+          </span>
+        </div>
       </div>
     </div>
   );
 }
-
-const hintStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 4,
-};
-
-const kbdStyle: React.CSSProperties = {
-  fontFamily: MONO,
-  background: "#313147",
-  color: C.textSub,
-  padding: "2px 6px",
-  borderRadius: 3,
-  fontSize: 10,
-  border: `1px solid ${C.borderSubtle}`,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontFamily: MONO,
-  color: C.textDim,
-  fontSize: 10,
-};

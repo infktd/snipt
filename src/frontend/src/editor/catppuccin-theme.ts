@@ -2,35 +2,35 @@ import { EditorView } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 
-const catppuccinMochaTheme = EditorView.theme(
+const catppuccinMacchiatoTheme = EditorView.theme(
   {
     "&": {
-      backgroundColor: "#1e1e2e",
-      color: "#cdd6f4",
+      backgroundColor: "#24273a",
+      color: "#cad3f5",
     },
     ".cm-content": {
       fontFamily: '"Berkeley Mono", "JetBrains Mono", "Fira Code", monospace',
       fontSize: "13px",
-      caretColor: "#cba6f7",
+      caretColor: "#c6a0f6",
       padding: "12px 0",
     },
     ".cm-gutters": {
-      backgroundColor: "#242435",
-      color: "#45475a",
-      borderRight: "1px solid #1f1f30",
+      backgroundColor: "#1e2030",
+      color: "#5b6078",
+      borderRight: "1px solid #363a4f",
       paddingLeft: "8px",
     },
     ".cm-activeLineGutter": {
-      backgroundColor: "#2a2a3c",
+      backgroundColor: "#363a4f",
     },
     ".cm-activeLine": {
-      backgroundColor: "#2a2a3c40",
+      backgroundColor: "rgba(54, 58, 79, 0.4)",
     },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-      backgroundColor: "#45475a !important",
+      backgroundColor: "#494d64 !important",
     },
     ".cm-cursor, .cm-dropCursor": {
-      borderLeftColor: "#cba6f7",
+      borderLeftColor: "#c6a0f6",
     },
     ".cm-lineNumbers .cm-gutterElement": {
       padding: "0 8px 0 0",
@@ -43,26 +43,26 @@ const catppuccinMochaTheme = EditorView.theme(
   { dark: true }
 );
 
-const catppuccinMochaHighlight = HighlightStyle.define([
-  { tag: tags.keyword, color: "#cba6f7", fontWeight: "600" },
-  { tag: tags.string, color: "#a6e3a1" },
-  { tag: tags.comment, color: "#45475a", fontStyle: "italic" },
-  { tag: tags.function(tags.variableName), color: "#89b4fa" },
-  { tag: tags.number, color: "#fab387" },
-  { tag: tags.typeName, color: "#f9e2af" },
-  { tag: tags.bool, color: "#fab387" },
-  { tag: tags.operator, color: "#89dceb" },
-  { tag: tags.propertyName, color: "#89b4fa" },
-  { tag: tags.punctuation, color: "#6c7086" },
-  { tag: tags.className, color: "#f9e2af" },
-  { tag: tags.definition(tags.variableName), color: "#cdd6f4" },
-  { tag: tags.variableName, color: "#cdd6f4" },
-  { tag: tags.tagName, color: "#f38ba8" },
-  { tag: tags.attributeName, color: "#f9e2af" },
-  { tag: tags.attributeValue, color: "#a6e3a1" },
+const catppuccinMacchiatoHighlight = HighlightStyle.define([
+  { tag: tags.keyword, color: "#c6a0f6", fontWeight: "600" },
+  { tag: tags.string, color: "#a6da95" },
+  { tag: tags.comment, color: "#5b6078", fontStyle: "italic" },
+  { tag: tags.function(tags.variableName), color: "#8aadf4" },
+  { tag: tags.number, color: "#f5a97f" },
+  { tag: tags.typeName, color: "#eed49f" },
+  { tag: tags.bool, color: "#f5a97f" },
+  { tag: tags.operator, color: "#91d7e3" },
+  { tag: tags.propertyName, color: "#8aadf4" },
+  { tag: tags.punctuation, color: "#8087a2" },
+  { tag: tags.className, color: "#eed49f" },
+  { tag: tags.definition(tags.variableName), color: "#cad3f5" },
+  { tag: tags.variableName, color: "#cad3f5" },
+  { tag: tags.tagName, color: "#ed8796" },
+  { tag: tags.attributeName, color: "#eed49f" },
+  { tag: tags.attributeValue, color: "#a6da95" },
 ]);
 
 export const catppuccinMocha = [
-  catppuccinMochaTheme,
-  syntaxHighlighting(catppuccinMochaHighlight),
+  catppuccinMacchiatoTheme,
+  syntaxHighlighting(catppuccinMacchiatoHighlight),
 ];

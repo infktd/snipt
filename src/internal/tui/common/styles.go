@@ -12,8 +12,8 @@ import (
 // In terminal: solid mauve bg since we can't do CSS gradients.
 func RenderBadgePill(text string) string {
 	style := lipgloss.NewStyle().
-		Foreground(ColorBg).    // dark text (#1e1e2e)
-		Background(ColorMauve). // mauve background (#cba6f7)
+		Foreground(ColorBg).
+		Background(ColorMauve).
 		Bold(true).
 		Padding(0, 1) // 1 char padding left and right for pill shape
 	return style.Render(text)
@@ -26,7 +26,7 @@ func RenderLangBadge(lang string, outerBg color.Color) string {
 
 	badgeStyle := lipgloss.NewStyle().
 		Foreground(langColor).
-		Background(lipgloss.Color("#313244")).
+		Background(lipgloss.Color("#363a4f")).
 		Bold(true)
 
 	return badgeStyle.Render(" " + lang + " ")
@@ -37,7 +37,7 @@ func RenderLangBadge(lang string, outerBg color.Color) string {
 func RenderTagBadge(tag string, fg color.Color, bg color.Color) string {
 	badgeStyle := lipgloss.NewStyle().
 		Foreground(fg).
-		Background(lipgloss.Color("#313244"))
+		Background(lipgloss.Color("#363a4f"))
 
 	return badgeStyle.Render(" #" + tag + " ")
 }

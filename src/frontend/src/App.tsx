@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { AppProvider, useAppState, useAppDispatch } from "./state/context";
 import { Sidebar } from "./components/Sidebar";
 import { DetailPane } from "./components/DetailPane";
@@ -11,7 +11,6 @@ import type { SearchBarHandle } from "./components/SearchBar";
 import type { Snippet } from "./state/types";
 
 import {
-  GetMode,
   GetConfig,
   ListSnippets,
   SearchSnippets,
@@ -21,8 +20,8 @@ import {
   DeleteSnippet,
   SetPinned,
   IncrementUseCount,
-} from "./wailsjs/go/gui/App";
-import { ClipboardSetText, EventsOn } from "./wailsjs/runtime/runtime";
+} from "./bindings/snippetservice";
+import { Clipboard, Events } from "@wailsio/runtime";
 
 function AppContent() {
   const state = useAppState();
@@ -53,15 +52,15 @@ function AppContent() {
       return;
     }
     SearchSnippets(debouncedQuery)
-      .then((results) =>
+      .then((results: any) =>
         dispatch({ type: "SET_SEARCH_RESULTS", results: results ?? [] })
       )
-      .catch((err) => console.error("Search failed:", err));
+      .catch((err: any) => console.error("Search failed:", err));
   }, [debouncedQuery, dispatch]);
 
   // Listen for tray "open-settings" event
   useEffect(() => {
-    const cancel = EventsOn("open-settings", () => {
+    const cancel = Events.On("open-settings", () => {
       dispatch({ type: "OPEN_SETTINGS" });
     });
     return cancel;
@@ -164,7 +163,7 @@ function AppContent() {
     if (selectedSnippets.length === 0) return;
     const combined = selectedSnippets.map((s) => s.Content).join("\n\n---\n\n");
     try {
-      await ClipboardSetText(combined);
+      await Clipboard.SetText(combined);
     } catch {
       await navigator.clipboard.writeText(combined);
     }
@@ -245,7 +244,6 @@ function AppContent() {
             left: 0,
             right: 0,
             height: 40,
-            "--wails-draggable": "drag",
             WebkitAppRegion: "drag",
             zIndex: 50,
           } as React.CSSProperties
@@ -302,15 +300,8 @@ function AppContent() {
 }
 
 export default function App() {
-  const [mode, setMode] = useState<string | null>(null);
-
-  useEffect(() => {
-    GetMode()
-      .then(setMode)
-      .catch(() => setMode("manage"));
-  }, []);
-
-  if (mode === null) return null;
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get("mode") === "find" ? "find" : "manage";
 
   if (mode === "find") return <FindPalette />;
 

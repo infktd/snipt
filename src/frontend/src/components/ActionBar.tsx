@@ -76,7 +76,7 @@ export function ActionBar({
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = "translateY(-1px)";
-          e.currentTarget.style.boxShadow = "0 4px 16px rgba(203, 166, 247, 0.2)";
+          e.currentTarget.style.boxShadow = "0 4px 16px rgba(198, 160, 246, 0.2)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = "translateY(0)";
@@ -103,7 +103,7 @@ export function ActionBar({
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(166, 227, 161, 0.2)";
+              e.currentTarget.style.boxShadow = "0 4px 16px rgba(166, 218, 149, 0.2)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0)";
@@ -121,7 +121,7 @@ export function ActionBar({
           onClick={onEdit}
           style={secondaryStyle}
           onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "rgba(203, 166, 247, 0.3)";
+            e.currentTarget.style.borderColor = "rgba(198, 160, 246, 0.3)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.borderColor = C.border;

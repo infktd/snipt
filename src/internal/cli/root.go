@@ -76,7 +76,7 @@ func NewRootCmd(version string) *cobra.Command {
 
 	// Default: launch GUI manage window when no subcommand is given.
 	root.RunE = func(cmd *cobra.Command, args []string) error {
-		return gui.LaunchGUI(store, "manage", appVersion)
+		return gui.LaunchGUI(store, appVersion)
 	}
 
 	return root

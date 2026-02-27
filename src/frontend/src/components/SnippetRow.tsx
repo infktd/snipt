@@ -24,7 +24,7 @@ export function SnippetRow({ snippet, selected, titleIndices, onClick }: Snippet
         transition: "background 0.12s ease, border-color 0.12s ease",
       }}
       onMouseEnter={(e) => {
-        if (!selected) e.currentTarget.style.background = "rgba(203, 166, 247, 0.04)";
+        if (!selected) e.currentTarget.style.background = "rgba(198, 160, 246, 0.04)";
       }}
       onMouseLeave={(e) => {
         if (!selected) e.currentTarget.style.background = "transparent";
