@@ -33,6 +33,11 @@ export interface Stats {
   RecentlyAdded: Snippet[];
 }
 
+export type DetailView =
+  | { kind: "snippet" }
+  | { kind: "settings" }
+  | { kind: "empty" };
+
 export interface AppState {
   snippets: Snippet[];
   searchResults: SearchResult[] | null;
@@ -42,6 +47,7 @@ export interface AppState {
   editMode: boolean;
   searchQuery: string;
   createMode: boolean;
+  detailView: DetailView;
 }
 
 export type AppAction =
@@ -54,4 +60,5 @@ export type AppAction =
   | { type: "SET_EDIT_MODE"; editing: boolean }
   | { type: "SET_SEARCH_QUERY"; query: string }
   | { type: "SET_CREATE_MODE"; creating: boolean }
-  | { type: "CLEAR_SEARCH" };
+  | { type: "CLEAR_SEARCH" }
+  | { type: "OPEN_SETTINGS" };

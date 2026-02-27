@@ -10,6 +10,7 @@ const initialState: AppState = {
   editMode: false,
   searchQuery: "",
   createMode: false,
+  detailView: { kind: "snippet" },
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -27,6 +28,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         focusId: action.id,
         editMode: false,
         createMode: false,
+        detailView: { kind: "snippet" },
       };
 
     case "SELECT_TOGGLE": {
@@ -104,6 +106,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     case "CLEAR_SEARCH":
       return { ...state, searchQuery: "", searchResults: null };
+    case "OPEN_SETTINGS":
+      return {
+        ...state,
+        detailView: { kind: "settings" },
+        editMode: false,
+        createMode: false,
+      };
     default:
       return state;
   }
