@@ -99,10 +99,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         createMode: action.creating,
-        editMode: true,
+        editMode: action.creating,
         selectedIds: new Set(),
         anchorId: null,
         focusId: null,
+        detailView: { kind: "snippet" },
       };
     case "CLEAR_SEARCH":
       return { ...state, searchQuery: "", searchResults: null };
@@ -117,6 +118,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         detailView: { kind: "snippet" },
+        createMode: false,
       };
     default:
       return state;

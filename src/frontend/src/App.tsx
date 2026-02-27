@@ -208,6 +208,8 @@ function AppContent() {
     onEscape: () => {
       if (state.detailView.kind === "settings") {
         dispatch({ type: "CLOSE_SETTINGS" });
+      } else if (state.createMode) {
+        dispatch({ type: "SET_CREATE_MODE", creating: false });
       } else if (state.selectedIds.size > 1) {
         if (state.focusId) {
           dispatch({ type: "SELECT_SINGLE", id: state.focusId });
@@ -218,8 +220,6 @@ function AppContent() {
         dispatch({ type: "SET_EDIT_MODE", editing: false });
       } else if (state.searchQuery) {
         dispatch({ type: "CLEAR_SEARCH" });
-      } else if (state.createMode) {
-        dispatch({ type: "SET_CREATE_MODE", creating: false });
       } else if (state.selectedIds.size === 1) {
         dispatch({ type: "SELECT_CLEAR" });
       }
