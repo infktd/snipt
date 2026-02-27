@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -51,7 +52,18 @@ func LaunchGUI(store *db.Store, mode, version string) error {
 		opts.Height = 700
 		opts.MinWidth = 800
 		opts.MinHeight = 500
+		opts.HideWindowOnClose = true
+
+		// Start system tray before the Wails event loop.
+		go setupTray(app)
 	}
 
-	return wails.Run(opts)
+	err := wails.Run(opts)
+
+	// Tear down the system tray when Wails exits.
+	if mode != "find" {
+		systray.Quit()
+	}
+
+	return err
 }
