@@ -65,3 +65,23 @@ export function GetDBPath(): Promise<string> {
 export function GetVersion(): Promise<string> {
   return call("GetVersion");
 }
+
+export function SyncSetup(token: string) {
+  return call("SyncSetup", token);
+}
+
+export function SyncNow() {
+  return call("SyncNow");
+}
+
+export function SyncStatus() {
+  return call("SyncStatus");
+}
+
+export function SyncDisconnect() {
+  return call("SyncDisconnect");
+}
+
+export function IsSyncConfigured(): Promise<boolean> {
+  return call("IsSyncConfigured");
+}

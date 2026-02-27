@@ -33,6 +33,22 @@ export interface Stats {
   RecentlyAdded: Snippet[];
 }
 
+export interface SyncResult {
+  pushed: number;
+  pulled: number;
+  deleted: number;
+  conflicts: number;
+  errors?: string[];
+}
+
+export interface SyncStatusInfo {
+  configured: boolean;
+  gist_id: string;
+  gist_url: string;
+  last_sync: string;
+  username: string;
+}
+
 export type DetailView =
   | { kind: "snippet" }
   | { kind: "settings" }
