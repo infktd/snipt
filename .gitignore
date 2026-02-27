@@ -13,3 +13,6 @@ src/frontend/package.json.md5
 # Wails
 src/frontend/src/wailsjs/
 src/cmd/snipt/build/
+
+# Build output
+build/bin/
