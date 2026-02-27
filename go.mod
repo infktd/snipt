@@ -14,7 +14,6 @@ require (
 )
 
 require (
-	fyne.io/systray v1.12.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.2 // indirect

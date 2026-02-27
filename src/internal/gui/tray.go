@@ -6,61 +6,11 @@ import (
 	"os/exec"
 	"time"
 
-	"fyne.io/systray"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed tray_icon.png
 var trayIconBytes []byte
-
-// setupTray starts the system tray icon and menu.
-// It blocks until systray.Quit() is called.
-func setupTray(app *App) {
-	systray.Run(func() {
-		onTrayReady(app)
-	}, func() {
-		// onExit — nothing to clean up
-	})
-}
-
-func onTrayReady(app *App) {
-	systray.SetIcon(trayIconBytes)
-	systray.SetTooltip("snipt")
-
-	// Title item (disabled, just a label)
-	mTitle := systray.AddMenuItem("✂ snipt", "")
-	mTitle.Disable()
-
-	systray.AddSeparator()
-
-	mFind := systray.AddMenuItem("Find", "Open find palette")
-	mManage := systray.AddMenuItem("Manage", "Show manage window")
-
-	systray.AddSeparator()
-
-	mSettings := systray.AddMenuItem("Settings", "Open settings")
-
-	systray.AddSeparator()
-
-	mQuit := systray.AddMenuItem("Quit snipt", "Quit the application")
-
-	go func() {
-		for {
-			select {
-			case <-mFind.ClickedCh:
-				launchFindPalette()
-			case <-mManage.ClickedCh:
-				showManageWindow(app)
-			case <-mSettings.ClickedCh:
-				showSettings(app)
-			case <-mQuit.ClickedCh:
-				systray.Quit()
-				wailsRuntime.Quit(app.ctx)
-				return
-			}
-		}
-	}()
-}
 
 // launchFindPalette spawns "snipt find" as a separate process.
 func launchFindPalette() {
@@ -74,7 +24,6 @@ func launchFindPalette() {
 
 // showManageWindow brings the manage window to front.
 func showManageWindow(app *App) {
-	// Wait for Wails context to be available
 	for app.ctx == nil {
 		time.Sleep(50 * time.Millisecond)
 	}
