@@ -73,6 +73,7 @@ func NewRootCmd(version string) *cobra.Command {
 	root.AddCommand(newImportCmd())
 	root.AddCommand(newFindCmd())
 	root.AddCommand(newManageCmd())
+	root.AddCommand(newSyncCmd())
 
 	// Default: launch GUI manage window when no subcommand is given.
 	root.RunE = func(cmd *cobra.Command, args []string) error {
