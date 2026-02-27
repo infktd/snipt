@@ -219,14 +219,14 @@ func (s *Store) List(opts ListOpts) ([]model.Snippet, error) {
 	}
 
 	switch opts.Sort {
-	case "updated":
-		query += " ORDER BY s.updated_at DESC"
 	case "usage":
-		query += " ORDER BY s.use_count DESC"
-	case "title":
+		query += " ORDER BY s.use_count DESC, s.updated_at DESC"
+	case "alpha", "title":
 		query += " ORDER BY s.title ASC"
-	default: // "created" or empty
+	case "created":
 		query += " ORDER BY s.created_at DESC"
+	default: // "recent", "updated", or empty
+		query += " ORDER BY s.updated_at DESC"
 	}
 
 	rows, err := s.db.Query(query, args...)

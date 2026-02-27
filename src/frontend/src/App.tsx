@@ -12,6 +12,7 @@ import type { Snippet } from "./state/types";
 
 import {
   GetMode,
+  GetConfig,
   ListSnippets,
   SearchSnippets,
   CreateSnippet,
@@ -29,10 +30,12 @@ function AppContent() {
   const searchBarRef = useRef<SearchBarHandle>(null);
   const debouncedQuery = useDebounce(state.searchQuery, 300);
 
-  // Load snippets on mount
+  // Load snippets with sort from config
   const loadSnippets = useCallback(async () => {
     try {
-      const snippets = await ListSnippets({} as never);
+      const cfg = await GetConfig();
+      const sort = cfg.Find?.Sort || "recent";
+      const snippets = await ListSnippets({ Sort: sort } as never);
       dispatch({ type: "SET_SNIPPETS", snippets: snippets ?? [] });
     } catch (err) {
       console.error("Failed to load snippets:", err);
@@ -204,7 +207,9 @@ function AppContent() {
       }
     },
     onEscape: () => {
-      if (state.selectedIds.size > 1) {
+      if (state.detailView.kind === "settings") {
+        dispatch({ type: "CLOSE_SETTINGS" });
+      } else if (state.selectedIds.size > 1) {
         if (state.focusId) {
           dispatch({ type: "SELECT_SINGLE", id: state.focusId });
         } else {
@@ -261,11 +266,12 @@ function AppContent() {
             dispatch({ type: "SET_CREATE_MODE", creating: true })
           }
           searchBarRef={searchBarRef}
-          onOpenSettings={() => dispatch({ type: "OPEN_SETTINGS" })}
-          settingsActive={state.detailView.kind === "settings"}
         />
         {state.detailView.kind === "settings" ? (
-          <Settings />
+          <Settings
+            onSortChanged={loadSnippets}
+            onClose={() => dispatch({ type: "CLOSE_SETTINGS" })}
+          />
         ) : (
           <DetailPane
             snippet={singleSelected}

@@ -61,4 +61,5 @@ export type AppAction =
   | { type: "SET_SEARCH_QUERY"; query: string }
   | { type: "SET_CREATE_MODE"; creating: boolean }
   | { type: "CLEAR_SEARCH" }
-  | { type: "OPEN_SETTINGS" };
+  | { type: "OPEN_SETTINGS" }
+  | { type: "CLOSE_SETTINGS" };

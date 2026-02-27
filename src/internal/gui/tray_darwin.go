@@ -9,6 +9,7 @@ import "C"
 import (
 	"unsafe"
 
+	"github.com/pkg/browser"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -22,28 +23,36 @@ func goTrayClicked() {
 //export goMenuManage
 func goMenuManage() {
 	if trayApp != nil {
-		showManageWindow(trayApp)
+		go showManageWindow(trayApp)
 	}
 }
 
 //export goMenuSettings
 func goMenuSettings() {
 	if trayApp != nil {
-		showSettings(trayApp)
+		go showSettings(trayApp)
 	}
+}
+
+//export goMenuCheckForUpdates
+func goMenuCheckForUpdates() {
+	go browser.OpenURL("https://github.com/infktd/snipt/releases/latest")
 }
 
 //export goMenuQuit
 func goMenuQuit() {
 	if trayApp != nil {
-		wailsRuntime.Quit(trayApp.ctx)
+		go wailsRuntime.Quit(trayApp.ctx)
 	}
 }
 
 func setupTray(app *App) {
 	trayApp = app
 	ptr := unsafe.Pointer(&trayIconBytes[0])
-	C.setupNativeTray(ptr, C.int(len(trayIconBytes)))
+	ver := C.CString(app.version)
+	defer C.free(unsafe.Pointer(ver))
+	C.setupNativeTray(ptr, C.int(len(trayIconBytes)), ver)
+	C.injectAppMenuItems()
 }
 
 func teardownTray() {

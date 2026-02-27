@@ -29,7 +29,12 @@ interface Stats {
   Languages: Record<string, number>;
 }
 
-export function Settings() {
+interface SettingsProps {
+  onSortChanged?: () => void;
+  onClose?: () => void;
+}
+
+export function Settings({ onSortChanged, onClose }: SettingsProps) {
   const [config, setConfig] = useState<Config | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [dbPath, setDbPath] = useState("");
@@ -81,18 +86,46 @@ export function Settings() {
         background: C.bg,
       }}
     >
-      <div style={{ padding: 24, maxWidth: 600 }}>
-        <h2
+      <div style={{ padding: 24 }}>
+        <div
           style={{
-            fontFamily: MONO,
-            fontSize: 16,
-            fontWeight: 600,
-            color: C.text,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
             margin: "0 0 24px",
           }}
         >
-          Settings
-        </h2>
+          <h2
+            style={{
+              fontFamily: MONO,
+              fontSize: 16,
+              fontWeight: 600,
+              color: C.text,
+              margin: 0,
+            }}
+          >
+            Settings
+          </h2>
+          {onClose && (
+            <button
+              onClick={onClose}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: C.textDim,
+                fontFamily: MONO,
+                fontSize: 18,
+                cursor: "pointer",
+                padding: "4px 8px",
+                borderRadius: 4,
+                lineHeight: 1,
+              }}
+              title="Close settings"
+            >
+              &times;
+            </button>
+          )}
+        </div>
 
         {/* GENERAL */}
         <SectionLabel>General</SectionLabel>
@@ -122,12 +155,12 @@ export function Settings() {
             { value: "usage", label: "Most used" },
             { value: "alpha", label: "Alphabetical" },
           ]}
-          onChange={(v) =>
+          onChange={(v) => {
             updateField((c) => ({
               ...c,
               Find: { ...c.Find, Sort: v },
-            }))
-          }
+            })).then(() => onSortChanged?.());
+          }}
         />
         <ToggleRow
           label="Copy to clipboard"

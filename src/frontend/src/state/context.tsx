@@ -113,6 +113,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
         editMode: false,
         createMode: false,
       };
+    case "CLOSE_SETTINGS":
+      return {
+        ...state,
+        detailView: { kind: "snippet" },
+      };
     default:
       return state;
   }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { C, BODY, MONO } from "../styles/colors";
 import { langColors, highlightTitle } from "../utils/snippetDisplay";
 import {
+  GetConfig,
   ListSnippets,
   SearchSnippets,
   IncrementUseCount,
@@ -21,9 +22,15 @@ export function FindPalette() {
   const listRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(query, 150);
 
-  // Load all snippets on mount
+  // Load all snippets on mount with sort from config
   useEffect(() => {
-    ListSnippets({} as never).then((s) => setSnippets(s ?? []));
+    GetConfig()
+      .then((cfg) => {
+        const sort = cfg.Find?.Sort || "recent";
+        return ListSnippets({ Sort: sort } as never);
+      })
+      .then((s) => setSnippets(s ?? []))
+      .catch((err) => console.error("Failed to load snippets:", err));
     inputRef.current?.focus();
   }, []);
 
