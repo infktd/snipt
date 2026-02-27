@@ -17,7 +17,6 @@ interface Config {
     Hotkey: string;
   };
   Find: {
-    Preview: boolean;
     Sort: string;
     CopyToClipboard: boolean;
   };
@@ -137,16 +136,6 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
         {/* FIND */}
         <SectionLabel>Find</SectionLabel>
         <Divider />
-        <ToggleRow
-          label="Show preview"
-          value={config.Find?.Preview ?? false}
-          onChange={(v) =>
-            updateField((c) => ({
-              ...c,
-              Find: { ...c.Find, Preview: v },
-            }))
-          }
-        />
         <SelectRow
           label="Default sort"
           value={config.Find?.Sort || "recent"}

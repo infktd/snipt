@@ -17,8 +17,24 @@ func (e *NotFoundError) Error() string {
 }
 
 // Search performs a full-text search using FTS5 MATCH and returns results
-// ordered by relevance score.
+// ordered by relevance score. Each term is quoted and given a * suffix so
+// partial/prefix input matches (e.g. "hel" matches "hello").
+// If the query starts with "#", it searches the tags table instead.
 func (s *Store) Search(query string) ([]model.SearchResult, error) {
+	if strings.HasPrefix(query, "#") {
+		return s.searchByTag(strings.TrimPrefix(query, "#"))
+	}
+
+	// Build prefix query: each term becomes "term"* for FTS5 prefix matching.
+	terms := strings.Fields(query)
+	if len(terms) == 0 {
+		return nil, nil
+	}
+	for i, t := range terms {
+		terms[i] = `"` + strings.ReplaceAll(t, `"`, `""`) + `"` + "*"
+	}
+	ftsQuery := strings.Join(terms, " ")
+
 	rows, err := s.db.Query(`
 		SELECT s.id, s.title, s.content, s.language, s.description, s.source,
 		       s.pinned, s.use_count, s.created_at, s.updated_at,
@@ -27,7 +43,7 @@ func (s *Store) Search(query string) ([]model.SearchResult, error) {
 		JOIN snippets s ON s.rowid = fts.rowid
 		WHERE snippets_fts MATCH ?
 		ORDER BY rank
-	`, query)
+	`, ftsQuery)
 	if err != nil {
 		return nil, fmt.Errorf("FTS5 search: %w", err)
 	}
@@ -67,6 +83,63 @@ func (s *Store) Search(query string) ([]model.SearchResult, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate search results: %w", err)
+	}
+
+	return results, nil
+}
+
+// searchByTag finds snippets whose tags match the given prefix.
+func (s *Store) searchByTag(prefix string) ([]model.SearchResult, error) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return nil, nil
+	}
+
+	rows, err := s.db.Query(`
+		SELECT DISTINCT s.id, s.title, s.content, s.language, s.description, s.source,
+		       s.pinned, s.use_count, s.created_at, s.updated_at
+		FROM tags t
+		JOIN snippets s ON s.id = t.snippet_id
+		WHERE t.tag LIKE ? || '%'
+		ORDER BY s.title
+	`, strings.ToLower(prefix))
+	if err != nil {
+		return nil, fmt.Errorf("tag search: %w", err)
+	}
+	defer rows.Close()
+
+	var results []model.SearchResult
+	for rows.Next() {
+		var sn model.Snippet
+		var pinned int
+		var createdAt, updatedAt string
+
+		err := rows.Scan(
+			&sn.ID, &sn.Title, &sn.Content, &sn.Language,
+			&sn.Description, &sn.Source, &pinned, &sn.UseCount,
+			&createdAt, &updatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan tag result: %w", err)
+		}
+
+		sn.Pinned = pinned != 0
+		sn.CreatedAt = parseTime(createdAt)
+		sn.UpdatedAt = parseTime(updatedAt)
+
+		tags, err := s.getTags(sn.ID)
+		if err != nil {
+			return nil, err
+		}
+		sn.Tags = tags
+
+		results = append(results, model.SearchResult{
+			Snippet: sn,
+			Score:   1.0,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate tag results: %w", err)
 	}
 
 	return results, nil
@@ -119,15 +192,8 @@ func (s *Store) ResolveRef(ref string) ([]model.SearchResult, error) {
 		return titleResults, nil
 	}
 
-	// 3. FTS5 search.
-	// Escape special FTS5 characters by quoting each term.
-	terms := strings.Fields(ref)
-	for i, t := range terms {
-		terms[i] = `"` + strings.ReplaceAll(t, `"`, `""`) + `"`
-	}
-	ftsQuery := strings.Join(terms, " ")
-
-	results, err := s.Search(ftsQuery)
+	// 3. FTS5 search (Search handles quoting and prefix matching).
+	results, err := s.Search(ref)
 	if err != nil {
 		// If the FTS query fails (e.g. syntax error), return empty results.
 		return nil, nil

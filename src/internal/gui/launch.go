@@ -90,6 +90,23 @@ func LaunchGUI(store *db.Store, version string) error {
 		findWindow.Hide()
 	})
 
+	// Dynamic resize: frontend emits desired height based on result count.
+	// Only resize height — no Center() here to avoid stealing focus from the input.
+	app.Event.On("resize-find", func(e *application.CustomEvent) {
+		if data, ok := e.Data.(map[string]interface{}); ok {
+			if h, ok := data["height"].(float64); ok {
+				height := int(h)
+				if height < 100 {
+					height = 100
+				}
+				if height > 500 {
+					height = 500
+				}
+				findWindow.SetSize(680, height)
+			}
+		}
+	})
+
 	// ── System Tray ────────────────────────────────────────
 	tray := app.SystemTray.New()
 	tray.SetTemplateIcon(trayIcon)
@@ -117,6 +134,16 @@ func LaunchGUI(store *db.Store, version string) error {
 	// Click tray icon → show find palette centered (Spotlight-like).
 	tray.OnClick(func() {
 		showFindPalette(app, findWindow)
+	})
+
+	// ── Dock Icon Click ───────────────────────────────────
+	// Wails has a built-in ApplicationShouldHandleReopen listener that shows ALL
+	// hidden windows. We use a hook (runs before listeners) to cancel it and
+	// show only the manage window.
+	app.Event.RegisterApplicationEventHook(events.Mac.ApplicationShouldHandleReopen, func(event *application.ApplicationEvent) {
+		manageWindow.Show()
+		manageWindow.Focus()
+		event.Cancel()
 	})
 
 	// ── Application Menu ───────────────────────────────────

@@ -8,8 +8,20 @@ import {
   IncrementUseCount,
 } from "../bindings/snippetservice";
 import { Clipboard, Events } from "@wailsio/runtime";
-import { useDebounce } from "../hooks/useDebounce";
 import type { Snippet, SearchResult } from "../state/types";
+
+// Height constants for dynamic window resize (measure from CSS)
+const SEARCH_BAR_HEIGHT = 43;  // 12px padding × 2 + content + border
+const ROW_HEIGHT = 33;          // 9px padding × 2 + ~15px content
+const FOOTER_HEIGHT = 28;       // 7px padding × 2 + content + border
+const BORDER_EXTRA = 2;         // top + bottom border of .find-palette-inner
+const MIN_ROWS = 1;
+const MAX_ROWS = 10;
+
+function calcPaletteHeight(resultCount: number): number {
+  const rows = resultCount === 0 ? 1 : Math.max(MIN_ROWS, Math.min(resultCount, MAX_ROWS));
+  return SEARCH_BAR_HEIGHT + (rows * ROW_HEIGHT) + FOOTER_HEIGHT + BORDER_EXTRA;
+}
 
 export function FindPalette() {
   const [query, setQuery] = useState("");
@@ -19,8 +31,6 @@ export function FindPalette() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const debouncedQuery = useDebounce(query, 150);
-
   // Load snippets
   const loadSnippets = useCallback(() => {
     GetConfig()
@@ -57,23 +67,30 @@ export function FindPalette() {
     return cancel;
   }, [loadSnippets]);
 
-  // Search when debounced query changes
+  // Search on every keystroke — FTS5 is sub-millisecond locally
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed === "#") {
       setSearchResults(null);
       setActiveIndex(0);
       return;
     }
-    SearchSnippets(debouncedQuery).then((results: any) => {
+    SearchSnippets(query).then((results: any) => {
       setSearchResults(results ?? []);
       setActiveIndex(0);
     });
-  }, [debouncedQuery]);
+  }, [query]);
 
   // Derive display list
   const displayList: Snippet[] = searchResults
     ? searchResults.map((r) => r.Snippet)
     : snippets;
+
+  // Resize window to fit visible results
+  useEffect(() => {
+    const height = calcPaletteHeight(displayList.length);
+    Events.Emit("resize-find", { height });
+  }, [displayList.length]);
 
   const getTitleIndices = (id: string): number[] | null => {
     if (!searchResults) return null;
@@ -190,7 +207,9 @@ export function FindPalette() {
             );
           })}
           {displayList.length === 0 && (
-            <div className="find-empty">No snippets found</div>
+            <div className="find-result-row find-no-results">
+              <span className="title" style={{ color: 'var(--text-muted)' }}>No matches</span>
+            </div>
           )}
         </div>
 
