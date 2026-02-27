@@ -184,6 +184,8 @@ func (e *SyncEngine) Pull() (*SyncResult, error) {
 		return nil, fmt.Errorf("get gist: %w", err)
 	}
 
+	meta := e.parseMeta(gist)
+
 	localSnippets, err := e.store.List(db.ListOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("list snippets: %w", err)
@@ -225,6 +227,13 @@ func (e *SyncEngine) Pull() (*SyncResult, error) {
 				result.Pulled++
 			}
 		} else {
+			// If this slug was previously synced (exists in meta hashes) but
+			// is no longer in the local DB, the user deleted it locally.
+			// Skip re-importing — Push() will delete it from the Gist.
+			if _, wasSynced := meta.Hashes[filename]; wasSynced {
+				continue
+			}
+
 			remoteSn.ID = model.NewID()
 			if err := e.store.Create(&remoteSn); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("create %s: %v", filename, err))

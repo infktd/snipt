@@ -2,6 +2,8 @@ package gui
 
 import (
 	"fmt"
+	"log"
+	gosync "sync"
 	"time"
 
 	"github.com/infktd/snipt/src/internal/config"
@@ -15,11 +17,32 @@ import (
 type SnippetService struct {
 	store   *db.Store
 	version string
+
+	syncMu    gosync.Mutex
+	syncTimer *time.Timer
 }
+
+const autoSyncDelay = 2 * time.Second
 
 // NewSnippetService creates a new SnippetService backed by the given store.
 func NewSnippetService(store *db.Store, version string) *SnippetService {
 	return &SnippetService{store: store, version: version}
+}
+
+// triggerAutoSync schedules a background sync after a short debounce delay.
+// Rapid successive calls reset the timer so only one sync fires.
+func (s *SnippetService) triggerAutoSync() {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+
+	if s.syncTimer != nil {
+		s.syncTimer.Stop()
+	}
+	s.syncTimer = time.AfterFunc(autoSyncDelay, func() {
+		if _, err := s.SyncNow(); err != nil {
+			log.Printf("[auto-sync] %v", err)
+		}
+	})
 }
 
 func (s *SnippetService) ListSnippets(opts db.ListOpts) ([]model.Snippet, error) {
@@ -36,11 +59,19 @@ func (s *SnippetService) GetSnippet(id string) (*model.Snippet, error) {
 
 func (s *SnippetService) CreateSnippet(snippet model.Snippet) error {
 	snippet.ID = model.NewID()
-	return s.store.Create(&snippet)
+	if err := s.store.Create(&snippet); err != nil {
+		return err
+	}
+	s.triggerAutoSync()
+	return nil
 }
 
 func (s *SnippetService) UpdateSnippet(snippet model.Snippet) error {
-	return s.store.Update(&snippet)
+	if err := s.store.Update(&snippet); err != nil {
+		return err
+	}
+	s.triggerAutoSync()
+	return nil
 }
 
 func (s *SnippetService) UpdateSnippetTags(id string, tags []string) error {
@@ -83,15 +114,24 @@ func (s *SnippetService) UpdateSnippetTags(id string, tags []string) error {
 		}
 	}
 
+	s.triggerAutoSync()
 	return nil
 }
 
 func (s *SnippetService) DeleteSnippet(id string) error {
-	return s.store.Delete(id)
+	if err := s.store.Delete(id); err != nil {
+		return err
+	}
+	s.triggerAutoSync()
+	return nil
 }
 
 func (s *SnippetService) SetPinned(id string, pinned bool) error {
-	return s.store.SetPinned(id, pinned)
+	if err := s.store.SetPinned(id, pinned); err != nil {
+		return err
+	}
+	s.triggerAutoSync()
+	return nil
 }
 
 func (s *SnippetService) IncrementUseCount(id string) error {
@@ -141,13 +181,14 @@ func (s *SnippetService) SyncSetup(token string) (*sync.SyncResult, error) {
 }
 
 // SyncNow performs a bidirectional sync and updates last_sync.
+// Returns nil, nil when sync is not configured (no-op).
 func (s *SnippetService) SyncNow() (*sync.SyncResult, error) {
 	appCfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
 	if appCfg.Sync.GistID == "" {
-		return nil, fmt.Errorf("sync not configured")
+		return nil, nil
 	}
 
 	client := sync.NewGistClient(appCfg.Sync.Token)

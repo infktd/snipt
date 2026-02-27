@@ -136,6 +136,10 @@ func LaunchGUI(store *db.Store, version string) error {
 		showFindPalette(app, findWindow)
 	})
 
+	// ── Auto-Sync on Launch ──────────────────────────────
+	// Fire a background sync shortly after startup so the app is up-to-date.
+	service.triggerAutoSync()
+
 	// ── Dock Icon Click ───────────────────────────────────
 	// Wails has a built-in ApplicationShouldHandleReopen listener that shows ALL
 	// hidden windows. We use a hook (runs before listeners) to cancel it and
@@ -175,6 +179,17 @@ func LaunchGUI(store *db.Store, version string) error {
 		OnClick(func(ctx *application.Context) {
 			app.Quit()
 		})
+
+	editMenu := appMenu.AddSubmenu("Edit")
+	editMenu.AddRole(application.Undo)
+	editMenu.AddRole(application.Redo)
+	editMenu.AddSeparator()
+	editMenu.AddRole(application.Cut)
+	editMenu.AddRole(application.Copy)
+	editMenu.AddRole(application.Paste)
+	editMenu.AddRole(application.PasteAndMatchStyle)
+	editMenu.AddSeparator()
+	editMenu.AddRole(application.SelectAll)
 
 	app.Menu.Set(appMenu)
 

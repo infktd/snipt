@@ -239,6 +239,72 @@ func TestSetup(t *testing.T) {
 	}
 }
 
+func TestPull_SkipsLocallyDeletedSnippets(t *testing.T) {
+	store := openTestStore(t)
+
+	// Simulate: a snippet was previously synced (exists in meta hashes and in Gist)
+	// but has been deleted locally. Pull should NOT re-import it.
+	deletedSlug := "deleted-locally.md"
+	deletedMD := ToFrontmatter(model.Snippet{
+		Title:    "Deleted Locally",
+		Language: "go",
+		Content:  "package deleted",
+	})
+	deletedHash := ComputeHash(model.Snippet{
+		Title:    "Deleted Locally",
+		Language: "go",
+		Content:  "package deleted",
+	})
+
+	// Also include a genuinely new remote snippet (not in meta hashes).
+	newRemoteMD := ToFrontmatter(model.Snippet{
+		Title:    "Genuinely New",
+		Language: "python",
+		Content:  "print('hello')",
+	})
+
+	metaJSON, _ := json.Marshal(SyncMeta{
+		Version: 1,
+		Hashes:  map[string]string{deletedSlug: deletedHash},
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(Gist{
+			ID: "test-gist",
+			Files: map[string]GistFile{
+				deletedSlug:        {Content: deletedMD},
+				"genuinely-new.md": {Content: newRemoteMD},
+				".snipt-meta.json": {Content: string(metaJSON)},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := NewGistClient("token")
+	client.baseURL = srv.URL
+
+	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	engine := NewSyncEngine(store, client, cfg)
+
+	result, err := engine.Pull()
+	if err != nil {
+		t.Fatalf("Pull() error: %v", err)
+	}
+
+	// Only the genuinely new snippet should be pulled — not the locally deleted one.
+	if result.Pulled != 1 {
+		t.Errorf("Pulled = %d, want 1", result.Pulled)
+	}
+
+	all, _ := store.List(db.ListOpts{})
+	if len(all) != 1 {
+		t.Fatalf("DB snippet count = %d, want 1", len(all))
+	}
+	if all[0].Title != "Genuinely New" {
+		t.Errorf("Title = %q, want %q", all[0].Title, "Genuinely New")
+	}
+}
+
 func TestSync_BidirectionalMerge(t *testing.T) {
 	store := openTestStore(t)
 
