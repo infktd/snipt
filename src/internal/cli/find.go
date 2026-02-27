@@ -29,7 +29,7 @@ Use --pipe/-p for terminal output (useful for piping).`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !pipe {
-				return gui.LaunchGUI(store, "find")
+				return gui.LaunchGUI(store, "find", appVersion)
 			}
 
 			// TUI pipe mode (existing behavior).

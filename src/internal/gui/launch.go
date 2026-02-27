@@ -11,8 +11,8 @@ import (
 )
 
 // LaunchGUI starts a Wails window in the given mode ("manage" or "find").
-func LaunchGUI(store *db.Store, mode string) error {
-	app := NewApp(store, mode)
+func LaunchGUI(store *db.Store, mode, version string) error {
+	app := NewApp(store, mode, version)
 
 	opts := &options.App{
 		Title: "snipt",

@@ -10,14 +10,17 @@ import (
 )
 
 var (
-	dbPath  string
-	noColor bool
-	store   *db.Store
-	cfg     *config.Config
+	dbPath     string
+	noColor    bool
+	store      *db.Store
+	cfg        *config.Config
+	appVersion string
 )
 
 // NewRootCmd creates the root snipt command with all subcommands registered.
 func NewRootCmd(version string) *cobra.Command {
+	appVersion = version
+
 	root := &cobra.Command{
 		Use:          "snipt",
 		Short:        "A CLI snippet manager",
@@ -73,7 +76,7 @@ func NewRootCmd(version string) *cobra.Command {
 
 	// Default: launch GUI manage window when no subcommand is given.
 	root.RunE = func(cmd *cobra.Command, args []string) error {
-		return gui.LaunchGUI(store, "manage")
+		return gui.LaunchGUI(store, "manage", appVersion)
 	}
 
 	return root

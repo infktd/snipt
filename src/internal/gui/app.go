@@ -3,21 +3,23 @@ package gui
 import (
 	"context"
 
+	"github.com/infktd/snipt/src/internal/config"
 	"github.com/infktd/snipt/src/internal/db"
 	"github.com/infktd/snipt/src/internal/model"
 )
 
 // App exposes snippet operations to the Wails frontend.
 type App struct {
-	ctx   context.Context
-	store *db.Store
-	mode  string
+	ctx     context.Context
+	store   *db.Store
+	mode    string
+	version string
 }
 
 // NewApp creates a new App backed by the given store.
 // mode is "manage" or "find".
-func NewApp(store *db.Store, mode string) *App {
-	return &App{store: store, mode: mode}
+func NewApp(store *db.Store, mode, version string) *App {
+	return &App{store: store, mode: mode, version: version}
 }
 
 // GetMode returns the GUI mode ("manage" or "find").
@@ -119,4 +121,24 @@ func (a *App) IncrementUseCount(id string) error {
 // GetStats returns collection overview data.
 func (a *App) GetStats() (*model.Stats, error) {
 	return a.store.Stats()
+}
+
+// GetConfig returns the current user config.
+func (a *App) GetConfig() (*config.Config, error) {
+	return config.Load()
+}
+
+// UpdateConfig saves the given config to disk.
+func (a *App) UpdateConfig(cfg config.Config) error {
+	return cfg.Save()
+}
+
+// GetDBPath returns the path to the SQLite database.
+func (a *App) GetDBPath() string {
+	return config.DBPath("")
+}
+
+// GetVersion returns the app version string.
+func (a *App) GetVersion() string {
+	return a.version
 }
