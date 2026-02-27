@@ -254,3 +254,124 @@ mark {
   color: var(--text-dim);
   font-size: 9px;
 }
+
+/* ── Sync Modal ───────────────────────────────────────── */
+
+.sync-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 25, 38, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.sync-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  width: 480px;
+  max-width: 90%;
+}
+
+.sync-modal h3 {
+  font-family: "DM Sans", sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.sync-modal p {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.sync-modal code {
+  background: var(--bg-surface);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--mauve);
+}
+
+.sync-modal input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: monospace;
+  font-size: 13px;
+  padding: 10px 14px;
+  outline: none;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+
+.sync-modal input:focus {
+  border-color: var(--mauve);
+}
+
+.sync-modal input::placeholder {
+  color: var(--text-muted);
+}
+
+.sync-modal .link {
+  color: var(--mauve);
+  font-size: 12px;
+  cursor: pointer;
+  margin-bottom: 16px;
+  display: inline-block;
+}
+
+.sync-modal .link:hover {
+  text-decoration: underline;
+}
+
+.sync-modal .btn-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.sync-modal .btn-cancel {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-family: monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sync-modal .btn-cancel:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+.sync-modal .btn-connect {
+  background: var(--mauve);
+  color: var(--bg);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sync-modal .btn-connect:hover {
+  opacity: 0.9;
+}
+
+.sync-modal .btn-connect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

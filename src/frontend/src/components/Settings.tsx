@@ -6,6 +6,11 @@ import {
   GetStats,
   GetDBPath,
   GetVersion,
+  SyncSetup,
+  SyncNow,
+  SyncStatus,
+  SyncDisconnect,
+  IsSyncConfigured,
 } from "../bindings/snippetservice";
 import { Browser } from "@wailsio/runtime";
 
@@ -38,6 +43,13 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [dbPath, setDbPath] = useState("");
   const [version, setVersion] = useState("");
+  const [syncConfigured, setSyncConfigured] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [token, setToken] = useState("");
+  const [settingUp, setSettingUp] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -61,6 +73,15 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
       .catch(console.error);
   }, [loadConfig]);
 
+  useEffect(() => {
+    IsSyncConfigured().then((configured) => {
+      setSyncConfigured(configured);
+      if (configured) {
+        SyncStatus().then(setSyncStatus).catch(console.error);
+      }
+    });
+  }, []);
+
   async function updateField(updater: (cfg: Config) => Config) {
     if (!config) return;
     const updated = updater({ ...config });
@@ -71,6 +92,42 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
       console.error("Failed to update config:", err);
     }
   }
+
+  const handleSetup = async () => {
+    setSettingUp(true);
+    setSyncError(null);
+    try {
+      await SyncSetup(token);
+      setShowSyncModal(false);
+      setSyncConfigured(true);
+      setToken("");
+      const status = await SyncStatus();
+      setSyncStatus(status);
+    } catch (err: any) {
+      setSyncError(err?.message || String(err) || "Failed to connect");
+    } finally {
+      setSettingUp(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    try {
+      await SyncNow();
+      const status = await SyncStatus();
+      setSyncStatus(status);
+    } catch (err) {
+      console.error("Sync failed:", err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    await SyncDisconnect();
+    setSyncConfigured(false);
+    setSyncStatus(null);
+  };
 
   if (!config) return null;
 
@@ -169,26 +226,85 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
         <Row label="Snippets" value={String(stats?.TotalSnippets ?? 0)} />
         <Row label="Languages" value={String(langCount)} />
         <Row label="Tags" value={String(stats?.TotalTags ?? 0)} />
-        <div style={{ padding: "10px 0" }}>
-          <Row label="Gist Sync" value="Not configured" muted />
-          <button
-            style={{
-              background: "transparent",
-              color: C.mauve,
-              fontFamily: MONO,
-              fontSize: 12,
-              border: `1px solid ${C.border}`,
-              borderRadius: 6,
-              padding: "6px 14px",
-              cursor: "not-allowed",
-              opacity: 0.5,
-              marginTop: 4,
-            }}
-            disabled
-          >
-            Set up sync
-          </button>
-        </div>
+        {!syncConfigured && (
+          <div style={{ padding: "10px 0" }}>
+            <Row label="Gist Sync" value="Not configured" muted />
+            <button
+              onClick={() => setShowSyncModal(true)}
+              style={{
+                background: "transparent",
+                color: C.mauve,
+                fontFamily: MONO,
+                fontSize: 12,
+                border: `1px solid ${C.border}`,
+                borderRadius: 6,
+                padding: "6px 14px",
+                cursor: "pointer",
+                marginTop: 4,
+              }}
+            >
+              Set up sync
+            </button>
+          </div>
+        )}
+        {syncConfigured && syncStatus && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", fontFamily: MONO, fontSize: 13 }}>
+              <span style={{ color: C.textSub }}>Gist Sync</span>
+              <span style={{ color: C.green }}>● Connected</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", fontFamily: MONO, fontSize: 13 }}>
+              <span style={{ color: C.textSub }}>Gist</span>
+              <span
+                style={{ color: C.mauve, cursor: "pointer", fontSize: 13 }}
+                onClick={() => Browser.OpenURL(syncStatus.gist_url)}
+              >
+                {syncStatus.gist_id?.slice(0, 12)}...
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", fontFamily: MONO, fontSize: 13 }}>
+              <span style={{ color: C.textSub }}>Last sync</span>
+              <span style={{ color: C.textDim }}>{timeAgo(syncStatus.last_sync)}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
+              <span />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={handleSyncNow}
+                  disabled={syncing}
+                  style={{
+                    background: "transparent",
+                    color: C.mauve,
+                    fontFamily: MONO,
+                    fontSize: 12,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 6,
+                    padding: "6px 14px",
+                    cursor: syncing ? "not-allowed" : "pointer",
+                    opacity: syncing ? 0.5 : 1,
+                  }}
+                >
+                  {syncing ? "Syncing..." : "Sync now"}
+                </button>
+                <button
+                  onClick={handleDisconnect}
+                  style={{
+                    background: "transparent",
+                    color: C.red,
+                    fontFamily: MONO,
+                    fontSize: 12,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 6,
+                    padding: "6px 14px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ABOUT */}
         <SectionLabel>About</SectionLabel>
@@ -209,6 +325,54 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
           </span>
         </div>
       </div>
+      {showSyncModal && (
+        <div className="sync-modal-overlay" onClick={() => setShowSyncModal(false)}>
+          <div className="sync-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Connect to GitHub</h3>
+            <p>
+              Create a personal access token with the <code>gist</code> scope
+              to sync your snippets across machines.
+            </p>
+            <span
+              className="link"
+              onClick={() =>
+                Browser.OpenURL(
+                  "https://github.com/settings/tokens/new?scopes=gist&description=snipt-sync"
+                )
+              }
+            >
+              Create token on GitHub →
+            </span>
+            <input
+              type="password"
+              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              autoFocus
+            />
+            {syncError && (
+              <p style={{ color: C.red, fontSize: 12, margin: "0 0 12px" }}>
+                {syncError}
+              </p>
+            )}
+            <div className="btn-row">
+              <button
+                className="btn-cancel"
+                onClick={() => setShowSyncModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-connect"
+                onClick={handleSetup}
+                disabled={!token || settingUp}
+              >
+                {settingUp ? "Connecting..." : "Connect"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -368,4 +532,16 @@ function SelectRow({
       </select>
     </div>
   );
+}
+
+function timeAgo(iso: string): string {
+  if (!iso) return "never";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
