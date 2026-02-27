@@ -11,7 +11,7 @@ Set Padding 20
 Set TypingSpeed 50ms
 
 # Launch manage
-Type "snipt"
+Type "./snipt"
 Enter
 Sleep 2s
 
@@ -40,12 +40,10 @@ Escape
 Sleep 500ms
 
 # Go to language line and change "text" to "yaml"
-Type "j0f:la"
+Type "j0ftcw"
 Sleep 200ms
-# Select "text" and replace with "yaml"
-Type " yaml"
+Type "yaml"
 Escape
-Type "bdw"
 Sleep 500ms
 
 # Go to tags line and add tags

@@ -10,9 +10,9 @@ Set Theme "Catppuccin Mocha"
 Set Padding 20
 
 # Launch find palette
-Type "snipt find"
+Type "./snipt find"
 Enter
-Sleep 2s
+Sleep 5s
 
 # Type a search query
 Type "http"

@@ -10,7 +10,7 @@ Set Theme "Catppuccin Mocha"
 Set Padding 20
 
 # Launch manage (default command)
-Type "snipt"
+Type "./snipt"
 Enter
 Sleep 2s
 
@@ -57,4 +57,4 @@ Sleep 1.5s
 
 # Quit
 Type "q"
-Sleep 500ms
+Sleep 1500ms
