@@ -5,20 +5,20 @@ interface SnippetRowProps {
   snippet: Snippet;
   selected: boolean;
   titleIndices?: number[] | null;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
 }
 
 const langColors: Record<string, string> = {
-  go: C.blue,
+  go: C.sky,
   javascript: C.yellow,
   js: C.yellow,
   typescript: C.blue,
   ts: C.blue,
   python: C.green,
   py: C.green,
-  bash: C.peach,
-  sh: C.peach,
-  sql: C.mauve,
+  bash: C.green,
+  sh: C.green,
+  sql: C.yellow,
   html: C.red,
   css: C.sky,
   json: C.peach,
@@ -26,8 +26,9 @@ const langColors: Record<string, string> = {
   md: C.teal,
   rust: C.peach,
   ruby: C.red,
-  yaml: C.lavender,
+  yaml: C.peach,
   toml: C.lavender,
+  nix: C.mauve,
 };
 
 function highlightTitle(title: string, indices: number[] | null | undefined) {
@@ -67,14 +68,15 @@ export function SnippetRow({ snippet, selected, titleIndices, onClick }: Snippet
     <div
       onClick={onClick}
       style={{
-        padding: "10px 16px",
+        padding: "10px 14px",
         cursor: "pointer",
-        borderLeft: selected ? `3px solid ${C.pink}` : "3px solid transparent",
+        userSelect: "none",
+        borderLeft: `3px solid ${selected ? C.pink : "transparent"}`,
         background: selected ? C.bgSurface : "transparent",
-        transition: "background 0.1s",
+        transition: "background 0.12s ease, border-color 0.12s ease",
       }}
       onMouseEnter={(e) => {
-        if (!selected) e.currentTarget.style.background = C.bgCard;
+        if (!selected) e.currentTarget.style.background = "rgba(203, 166, 247, 0.04)";
       }}
       onMouseLeave={(e) => {
         if (!selected) e.currentTarget.style.background = "transparent";
@@ -95,7 +97,7 @@ export function SnippetRow({ snippet, selected, titleIndices, onClick }: Snippet
         }}
       >
         {snippet.Pinned && (
-          <span style={{ color: C.yellow, fontSize: 10, flexShrink: 0 }}>●</span>
+          <span style={{ color: C.yellow, fontSize: 8, flexShrink: 0 }}>●</span>
         )}
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
           {highlightTitle(snippet.Title, titleIndices)}
@@ -109,6 +111,7 @@ export function SnippetRow({ snippet, selected, titleIndices, onClick }: Snippet
           gap: 6,
           marginTop: 4,
           fontSize: 11,
+          overflow: "hidden",
         }}
       >
         {snippet.Language && (
@@ -118,8 +121,8 @@ export function SnippetRow({ snippet, selected, titleIndices, onClick }: Snippet
               fontFamily: MONO,
               fontSize: 10,
               padding: "1px 6px",
-              borderRadius: 4,
-              background: `${badgeColor}15`,
+              borderRadius: 10,
+              background: `${badgeColor}1A`,
               flexShrink: 0,
             }}
           >
@@ -131,8 +134,8 @@ export function SnippetRow({ snippet, selected, titleIndices, onClick }: Snippet
             key={tag}
             style={{
               color: C.textDim,
-              fontFamily: BODY,
-              fontSize: 10,
+              fontFamily: MONO,
+              fontSize: 11,
             }}
           >
             #{tag}

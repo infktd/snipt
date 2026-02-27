@@ -3,7 +3,6 @@ package db
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/infktd/snipt/src/internal/model"
 )
@@ -51,8 +50,8 @@ func (s *Store) Search(query string) ([]model.SearchResult, error) {
 		}
 
 		sn.Pinned = pinned != 0
-		sn.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		sn.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		sn.CreatedAt = parseTime(createdAt)
+		sn.UpdatedAt = parseTime(updatedAt)
 
 		tags, err := s.getTags(sn.ID)
 		if err != nil {

@@ -1,5 +1,5 @@
 import { useRef, forwardRef, useImperativeHandle } from "react";
-import { C, BODY } from "../styles/colors";
+import { C, BODY, MONO } from "../styles/colors";
 
 interface SearchBarProps {
   value: string;
@@ -22,22 +22,23 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(
       <div
         className="no-select"
         style={{
-          padding: "12px 16px",
-          borderBottom: `1px solid ${C.border}`,
+          padding: "12px 14px",
+          background: C.bgSurface,
+          borderBottom: `1px solid ${C.borderSubtle}`,
           display: "flex",
           alignItems: "center",
-          gap: 12,
+          gap: 10,
         }}
       >
         <span
           style={{
             background: `linear-gradient(135deg, ${C.pink}, ${C.mauve})`,
             color: C.bg,
-            fontFamily: BODY,
+            fontFamily: MONO,
             fontWeight: 700,
-            fontSize: 11,
-            padding: "3px 10px",
-            borderRadius: 12,
+            fontSize: 10,
+            padding: "3px 8px",
+            borderRadius: 5,
             letterSpacing: "0.5px",
             flexShrink: 0,
           }}

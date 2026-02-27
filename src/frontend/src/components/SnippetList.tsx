@@ -4,21 +4,24 @@ import type { Snippet, SearchResult } from "../state/types";
 interface SnippetListProps {
   snippets: Snippet[];
   searchResults: SearchResult[] | null;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
+  selectedIds: Set<string>;
+  onSelect: (id: string, e: React.MouseEvent) => void;
 }
 
-export function SnippetList({ snippets, searchResults, selectedId, onSelect }: SnippetListProps) {
+export function SnippetList({ snippets, searchResults, selectedIds, onSelect }: SnippetListProps) {
   if (searchResults) {
     return (
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div
+        style={{ flex: 1, overflowY: "auto", userSelect: "none" }}
+        onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
+      >
         {searchResults.map((result) => (
           <SnippetRow
             key={result.Snippet.ID}
             snippet={result.Snippet}
-            selected={result.Snippet.ID === selectedId}
+            selected={selectedIds.has(result.Snippet.ID)}
             titleIndices={result.TitleIndices}
-            onClick={() => onSelect(result.Snippet.ID)}
+            onClick={(e) => onSelect(result.Snippet.ID, e)}
           />
         ))}
         {searchResults.length === 0 && (
@@ -38,13 +41,16 @@ export function SnippetList({ snippets, searchResults, selectedId, onSelect }: S
   }
 
   return (
-    <div style={{ flex: 1, overflowY: "auto" }}>
+    <div
+        style={{ flex: 1, overflowY: "auto", userSelect: "none" }}
+        onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
+      >
       {snippets.map((snippet) => (
         <SnippetRow
           key={snippet.ID}
           snippet={snippet}
-          selected={snippet.ID === selectedId}
-          onClick={() => onSelect(snippet.ID)}
+          selected={selectedIds.has(snippet.ID)}
+          onClick={(e) => onSelect(snippet.ID, e)}
         />
       ))}
       {snippets.length === 0 && (

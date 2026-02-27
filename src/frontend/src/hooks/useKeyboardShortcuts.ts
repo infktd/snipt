@@ -9,6 +9,8 @@ interface ShortcutHandlers {
   onDelete: () => void;
   onNavigateUp: () => void;
   onNavigateDown: () => void;
+  onNavigateUpExtend: () => void;
+  onNavigateDownExtend: () => void;
   onEscape: () => void;
   onTogglePin: () => void;
 }
@@ -40,7 +42,7 @@ export function useKeyboardShortcuts(state: AppState, handlers: ShortcutHandlers
 
       if (meta && e.key === "Backspace") {
         e.preventDefault();
-        if (!state.editMode && state.selectedId) {
+        if (!state.editMode && state.selectedIds.size > 0) {
           handlers.onDelete();
         }
         return;
@@ -48,7 +50,7 @@ export function useKeyboardShortcuts(state: AppState, handlers: ShortcutHandlers
 
       if (meta && e.key === "p") {
         e.preventDefault();
-        if (state.selectedId) {
+        if (state.selectedIds.size > 0) {
           handlers.onTogglePin();
         }
         return;
@@ -66,12 +68,20 @@ export function useKeyboardShortcuts(state: AppState, handlers: ShortcutHandlers
       if (!state.editMode) {
         if (e.key === "ArrowUp") {
           e.preventDefault();
-          handlers.onNavigateUp();
+          if (e.shiftKey) {
+            handlers.onNavigateUpExtend();
+          } else {
+            handlers.onNavigateUp();
+          }
           return;
         }
         if (e.key === "ArrowDown") {
           e.preventDefault();
-          handlers.onNavigateDown();
+          if (e.shiftKey) {
+            handlers.onNavigateDownExtend();
+          } else {
+            handlers.onNavigateDown();
+          }
           return;
         }
       }

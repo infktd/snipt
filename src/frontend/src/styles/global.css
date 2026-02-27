@@ -46,6 +46,12 @@ body,
   -webkit-user-select: none;
 }
 
+/* Global transitions for interactive elements */
+button,
+a {
+  transition: all 0.12s ease;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
 }

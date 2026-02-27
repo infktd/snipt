@@ -8,6 +8,29 @@ interface DetailHeaderProps {
   onTitleChange: (title: string) => void;
 }
 
+const langColors: Record<string, string> = {
+  go: C.sky,
+  javascript: C.yellow,
+  js: C.yellow,
+  typescript: C.blue,
+  ts: C.blue,
+  python: C.green,
+  py: C.green,
+  bash: C.green,
+  sh: C.green,
+  sql: C.yellow,
+  html: C.red,
+  css: C.sky,
+  json: C.peach,
+  markdown: C.teal,
+  md: C.teal,
+  rust: C.peach,
+  ruby: C.red,
+  yaml: C.peach,
+  toml: C.lavender,
+  nix: C.mauve,
+};
+
 export function DetailHeader({
   title,
   language,
@@ -39,7 +62,7 @@ export function DetailHeader({
     }
   }
 
-  const langColor = C.mauve;
+  const langColor = langColors[language.toLowerCase()] ?? C.mauve;
 
   return (
     <div
@@ -47,9 +70,8 @@ export function DetailHeader({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "0 0 16px",
-        borderBottom: `1px solid ${C.border}`,
-        marginBottom: 16,
+        padding: "20px 24px 16px",
+        borderBottom: `1px solid ${C.borderSubtle}`,
       }}
     >
       {editing || editMode ? (
@@ -72,8 +94,8 @@ export function DetailHeader({
             outline: "none",
             color: C.text,
             fontFamily: BODY,
-            fontSize: 20,
-            fontWeight: 700,
+            fontSize: 22,
+            fontWeight: 600,
           }}
         />
       ) : (
@@ -83,8 +105,8 @@ export function DetailHeader({
             flex: 1,
             color: C.text,
             fontFamily: BODY,
-            fontSize: 20,
-            fontWeight: 700,
+            fontSize: 22,
+            fontWeight: 600,
             cursor: "pointer",
           }}
         >
@@ -98,9 +120,11 @@ export function DetailHeader({
             color: langColor,
             fontFamily: MONO,
             fontSize: 12,
-            padding: "3px 10px",
-            borderRadius: 8,
-            background: `${langColor}15`,
+            fontWeight: 500,
+            padding: "4px 12px",
+            borderRadius: 6,
+            background: `${langColor}1F`,
+            border: `1px solid ${langColor}33`,
             marginLeft: 12,
             flexShrink: 0,
           }}

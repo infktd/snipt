@@ -4,29 +4,33 @@ import { CodeEditor } from "./CodeEditor";
 import { MetadataFooter } from "./MetadataFooter";
 import { ActionBar } from "./ActionBar";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { C, BODY } from "../styles/colors";
+import { C, BODY, MONO } from "../styles/colors";
 import type { Snippet } from "../state/types";
 
 interface DetailPaneProps {
   snippet: Snippet | null;
+  selectedCount: number;
   editMode: boolean;
   createMode: boolean;
   onUpdate: (snippet: Snippet) => void;
   onUpdateTags: (id: string, tags: string[]) => void;
-  onDelete: (id: string) => void;
-  onTogglePin: (id: string, pinned: boolean) => void;
+  onDelete: () => void;
+  onTogglePin: () => void;
+  onBulkCopy: () => void;
   onCreate: (snippet: Partial<Snippet>) => void;
   onSetEditMode: (editing: boolean) => void;
 }
 
 export function DetailPane({
   snippet,
+  selectedCount,
   editMode,
   createMode,
   onUpdate,
   onUpdateTags,
   onDelete,
   onTogglePin,
+  onBulkCopy,
   onCreate,
   onSetEditMode,
 }: DetailPaneProps) {
@@ -34,6 +38,7 @@ export function DetailPane({
   const [editedTitle, setEditedTitle] = useState("");
   const [editedLanguage, setEditedLanguage] = useState("");
   const [editedTags, setEditedTags] = useState<string[]>([]);
+  const [editedPinned, setEditedPinned] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Sync local state when snippet changes
@@ -42,7 +47,7 @@ export function DetailPane({
       setEditedContent(snippet.Content);
       setEditedTitle(snippet.Title);
       setEditedLanguage(snippet.Language);
-      setEditedTags([...snippet.Tags]);
+      setEditedTags([...(snippet.Tags ?? [])]);
     }
   }, [snippet]);
 
@@ -53,24 +58,109 @@ export function DetailPane({
       setEditedTitle("");
       setEditedLanguage("");
       setEditedTags([]);
+      setEditedPinned(false);
     }
   }, [createMode]);
 
+  // Multi-select summary view
+  if (!snippet && !createMode && selectedCount > 1) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          paddingTop: 40,
+          gap: 16,
+          background: C.bg,
+        }}
+      >
+        <span style={{ color: C.mauve, fontFamily: MONO, fontSize: 32, fontWeight: 700 }}>
+          {selectedCount}
+        </span>
+        <span style={{ color: C.textSub, fontFamily: BODY, fontSize: 14 }}>
+          snippets selected
+        </span>
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <button
+            onClick={onBulkCopy}
+            style={{
+              background: `linear-gradient(135deg, ${C.pink}, ${C.mauve})`,
+              color: C.bg,
+              fontFamily: MONO,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "8px 18px",
+              borderRadius: 6,
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Copy {selectedCount}
+          </button>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            style={{
+              background: "transparent",
+              color: C.textDim,
+              fontFamily: MONO,
+              fontSize: 12,
+              fontWeight: 500,
+              padding: "8px 18px",
+              borderRadius: 6,
+              border: `1px solid ${C.border}`,
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = C.red;
+              e.currentTarget.style.borderColor = C.red;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = C.textDim;
+              e.currentTarget.style.borderColor = C.border;
+            }}
+          >
+            Delete {selectedCount}
+          </button>
+        </div>
+
+        {showDeleteConfirm && (
+          <ConfirmDialog
+            title={`Delete ${selectedCount} snippets?`}
+            message="This is permanent. All selected snippets will be removed."
+            onConfirm={() => {
+              onDelete();
+              setShowDeleteConfirm(false);
+            }}
+            onCancel={() => setShowDeleteConfirm(false)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Empty state
   if (!snippet && !createMode) {
     return (
       <div
         style={{
           flex: 1,
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           paddingTop: 40,
           color: C.textMuted,
-          fontFamily: BODY,
-          fontSize: 14,
+          fontFamily: MONO,
+          fontSize: 13,
+          gap: 8,
         }}
       >
-        Select a snippet or create a new one
+        <span style={{ fontSize: 32 }}>✂</span>
+        <span>Select a snippet</span>
+        <span>Cmd+N to create</span>
       </div>
     );
   }
@@ -82,6 +172,7 @@ export function DetailPane({
         Content: editedContent,
         Language: editedLanguage,
         Tags: editedTags,
+        Pinned: editedPinned,
       });
     } else if (snippet) {
       onUpdate({
@@ -90,7 +181,7 @@ export function DetailPane({
         Content: editedContent,
         Language: editedLanguage,
       });
-      if (JSON.stringify(editedTags) !== JSON.stringify(snippet.Tags)) {
+      if (JSON.stringify(editedTags) !== JSON.stringify(snippet.Tags ?? [])) {
         onUpdateTags(snippet.ID, editedTags);
       }
     }
@@ -103,8 +194,9 @@ export function DetailPane({
         flex: 1,
         display: "flex",
         flexDirection: "column",
-        padding: "40px 24px 16px 24px",
+        paddingTop: 40,
         overflow: "hidden",
+        background: C.bg,
       }}
     >
       <DetailHeader
@@ -116,7 +208,7 @@ export function DetailPane({
 
       {/* Language input in create/edit mode */}
       {editMode && (
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ margin: "0 24px 12px" }}>
           <input
             value={editedLanguage}
             onChange={(e) => setEditedLanguage(e.target.value)}
@@ -140,36 +232,35 @@ export function DetailPane({
         content={createMode ? "" : (snippet?.Content ?? "")}
         language={editMode ? editedLanguage : (snippet?.Language ?? "")}
         readOnly={!editMode}
+        editMode={editMode}
         onContentChange={setEditedContent}
         onDoubleClick={() => !editMode && onSetEditMode(true)}
       />
 
       {!createMode && snippet && (
         <MetadataFooter
-          tags={editMode ? editedTags : snippet.Tags}
+          tags={editMode ? editedTags : (snippet.Tags ?? [])}
           pinned={snippet.Pinned}
           useCount={snippet.UseCount}
           createdAt={snippet.CreatedAt}
           updatedAt={snippet.UpdatedAt}
           editMode={editMode}
           onTagsChange={setEditedTags}
-          onTogglePin={() => onTogglePin(snippet.ID, !snippet.Pinned)}
+          onTogglePin={onTogglePin}
         />
       )}
 
       {createMode && editMode && (
-        <div style={{ paddingTop: 16 }}>
-          <MetadataFooter
-            tags={editedTags}
-            pinned={false}
-            useCount={0}
-            createdAt=""
-            updatedAt=""
-            editMode={true}
-            onTagsChange={setEditedTags}
-            onTogglePin={() => {}}
-          />
-        </div>
+        <MetadataFooter
+          tags={editedTags}
+          pinned={editedPinned}
+          useCount={0}
+          createdAt=""
+          updatedAt=""
+          editMode={true}
+          onTagsChange={setEditedTags}
+          onTogglePin={() => setEditedPinned((p) => !p)}
+        />
       )}
 
       <ActionBar
@@ -186,7 +277,7 @@ export function DetailPane({
           title={`Delete "${snippet.Title}"?`}
           message="This is permanent. The snippet will be removed from your database."
           onConfirm={() => {
-            onDelete(snippet.ID);
+            onDelete();
             setShowDeleteConfirm(false);
           }}
           onCancel={() => setShowDeleteConfirm(false)}

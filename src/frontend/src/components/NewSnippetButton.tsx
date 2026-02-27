@@ -10,18 +10,18 @@ export function NewSnippetButton({ onClick }: NewSnippetButtonProps) {
       onClick={onClick}
       style={{
         width: "100%",
-        padding: "12px 16px",
-        background: C.bgCard,
+        padding: "10px 14px",
+        background: "transparent",
         border: "none",
-        borderTop: `1px solid ${C.border}`,
+        borderTop: `1px solid ${C.borderSubtle}`,
         color: C.textDim,
         fontFamily: BODY,
         fontSize: 13,
         cursor: "pointer",
         textAlign: "left",
-        transition: "color 0.1s",
+        transition: "color 0.12s ease",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.color = C.text)}
+      onMouseEnter={(e) => (e.currentTarget.style.color = C.textSub)}
       onMouseLeave={(e) => (e.currentTarget.style.color = C.textDim)}
     >
       + New snippet

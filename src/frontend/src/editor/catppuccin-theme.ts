@@ -17,7 +17,7 @@ const catppuccinMochaTheme = EditorView.theme(
     ".cm-gutters": {
       backgroundColor: "#242435",
       color: "#45475a",
-      border: "none",
+      borderRight: "1px solid #1f1f30",
       paddingLeft: "8px",
     },
     ".cm-activeLineGutter": {

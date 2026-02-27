@@ -36,7 +36,9 @@ export interface Stats {
 export interface AppState {
   snippets: Snippet[];
   searchResults: SearchResult[] | null;
-  selectedId: string | null;
+  selectedIds: Set<string>;
+  anchorId: string | null;
+  focusId: string | null;
   editMode: boolean;
   searchQuery: string;
   createMode: boolean;
@@ -45,7 +47,10 @@ export interface AppState {
 export type AppAction =
   | { type: "SET_SNIPPETS"; snippets: Snippet[] }
   | { type: "SET_SEARCH_RESULTS"; results: SearchResult[] | null }
-  | { type: "SET_SELECTED"; id: string | null }
+  | { type: "SELECT_SINGLE"; id: string }
+  | { type: "SELECT_TOGGLE"; id: string }
+  | { type: "SELECT_RANGE"; id: string; list: string[] }
+  | { type: "SELECT_CLEAR" }
   | { type: "SET_EDIT_MODE"; editing: boolean }
   | { type: "SET_SEARCH_QUERY"; query: string }
   | { type: "SET_CREATE_MODE"; creating: boolean }

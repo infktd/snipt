@@ -366,8 +366,8 @@ func scanSnippet(row *sql.Row) (*model.Snippet, error) {
 	}
 
 	s.Pinned = pinned != 0
-	s.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	s.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	s.CreatedAt = parseTime(createdAt)
+	s.UpdatedAt = parseTime(updatedAt)
 
 	return &s, nil
 }
@@ -404,4 +404,15 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// parseTime tries RFC3339 first, then falls back to SQLite's datetime format.
+func parseTime(s string) time.Time {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
+		return t.UTC()
+	}
+	return time.Time{}
 }

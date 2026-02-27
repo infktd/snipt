@@ -3,6 +3,7 @@ import { EditorState, Compartment } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
 import { catppuccinMocha } from "../editor/catppuccin-theme";
 import { loadLanguage } from "../editor/languages";
+import { C } from "../styles/colors";
 
 const readOnlyCompartment = new Compartment();
 const languageCompartment = new Compartment();
@@ -11,6 +12,7 @@ interface CodeEditorProps {
   content: string;
   language: string;
   readOnly: boolean;
+  editMode?: boolean;
   onContentChange?: (content: string) => void;
   onDoubleClick?: () => void;
 }
@@ -19,6 +21,7 @@ export function CodeEditor({
   content,
   language,
   readOnly,
+  editMode,
   onContentChange,
   onDoubleClick,
 }: CodeEditorProps) {
@@ -85,8 +88,11 @@ export function CodeEditor({
       style={{
         flex: 1,
         overflow: "auto",
+        margin: "16px 24px",
         borderRadius: 8,
-        border: "1px solid var(--border)",
+        border: `1px solid ${editMode ? C.mauve : C.borderSubtle}`,
+        background: C.bgTerminal,
+        transition: "border-color 0.12s ease",
       }}
     />
   );
