@@ -1,0 +1,295 @@
+package sync
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/infktd/snipt/src/internal/config"
+	"github.com/infktd/snipt/src/internal/db"
+	"github.com/infktd/snipt/src/internal/model"
+)
+
+func openTestStore(t *testing.T) *db.Store {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+	store, err := db.Open(path)
+	if err != nil {
+		t.Fatalf("Open() error: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	return store
+}
+
+func makeSnippet(id, title, content, lang string, tags []string) *model.Snippet {
+	return &model.Snippet{
+		ID:       id,
+		Title:    title,
+		Content:  content,
+		Language: lang,
+		Tags:     tags,
+	}
+}
+
+func TestPush_NewSnippets(t *testing.T) {
+	store := openTestStore(t)
+
+	sn1 := makeSnippet("push0001", "HTTP Server", "package main", "go", []string{"web"})
+	sn2 := makeSnippet("push0002", "Flask App", "from flask import Flask", "python", []string{"web"})
+	store.Create(sn1)
+	store.Create(sn2)
+
+	var patchPayload GistUpdate
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/gists/test-gist":
+			json.NewEncoder(w).Encode(Gist{
+				ID: "test-gist",
+				Files: map[string]GistFile{
+					".snipt-meta.json": {Content: `{"version":1,"snippet_hashes":{}}`},
+				},
+			})
+		case r.Method == "PATCH" && r.URL.Path == "/gists/test-gist":
+			json.NewDecoder(r.Body).Decode(&patchPayload)
+			json.NewEncoder(w).Encode(Gist{ID: "test-gist"})
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+
+	client := NewGistClient("token")
+	client.baseURL = srv.URL
+
+	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	engine := NewSyncEngine(store, client, cfg)
+
+	result, err := engine.Push()
+	if err != nil {
+		t.Fatalf("Push() error: %v", err)
+	}
+
+	if result.Pushed != 2 {
+		t.Errorf("Pushed = %d, want 2", result.Pushed)
+	}
+
+	if _, ok := patchPayload.Files["http-server.md"]; !ok {
+		t.Error("expected http-server.md in patch")
+	}
+	if _, ok := patchPayload.Files["flask-app.md"]; !ok {
+		t.Error("expected flask-app.md in patch")
+	}
+	if _, ok := patchPayload.Files[".snipt-meta.json"]; !ok {
+		t.Error("expected .snipt-meta.json in patch")
+	}
+}
+
+func TestPull_NewRemoteSnippets(t *testing.T) {
+	store := openTestStore(t)
+
+	remoteMD := ToFrontmatter(model.Snippet{
+		Title:    "Remote Snippet",
+		Language: "rust",
+		Content:  "fn main() {}",
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(Gist{
+			ID: "test-gist",
+			Files: map[string]GistFile{
+				"remote-snippet.md":  {Content: remoteMD},
+				".snipt-meta.json": {Content: `{"version":1,"snippet_hashes":{}}`},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := NewGistClient("token")
+	client.baseURL = srv.URL
+
+	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	engine := NewSyncEngine(store, client, cfg)
+
+	result, err := engine.Pull()
+	if err != nil {
+		t.Fatalf("Pull() error: %v", err)
+	}
+
+	if result.Pulled != 1 {
+		t.Errorf("Pulled = %d, want 1", result.Pulled)
+	}
+
+	all, _ := store.List(db.ListOpts{})
+	if len(all) != 1 {
+		t.Fatalf("DB snippet count = %d, want 1", len(all))
+	}
+	if all[0].Title != "Remote Snippet" {
+		t.Errorf("Title = %q, want %q", all[0].Title, "Remote Snippet")
+	}
+	if all[0].Language != "rust" {
+		t.Errorf("Language = %q, want %q", all[0].Language, "rust")
+	}
+}
+
+func TestPush_UnchangedSnippetsSkipped(t *testing.T) {
+	store := openTestStore(t)
+
+	sn := makeSnippet("skip0001", "Unchanged", "content", "go", nil)
+	store.Create(sn)
+
+	hash := ComputeHash(*sn)
+	metaJSON, _ := json.Marshal(SyncMeta{
+		Version: 1,
+		Hashes:  map[string]string{"unchanged.md": hash},
+	})
+
+	var patched bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET":
+			json.NewEncoder(w).Encode(Gist{
+				ID: "test-gist",
+				Files: map[string]GistFile{
+					"unchanged.md":     {Content: ToFrontmatter(*sn)},
+					".snipt-meta.json": {Content: string(metaJSON)},
+				},
+			})
+		case r.Method == "PATCH":
+			patched = true
+			json.NewEncoder(w).Encode(Gist{ID: "test-gist"})
+		}
+	}))
+	defer srv.Close()
+
+	client := NewGistClient("token")
+	client.baseURL = srv.URL
+
+	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	engine := NewSyncEngine(store, client, cfg)
+
+	result, err := engine.Push()
+	if err != nil {
+		t.Fatalf("Push() error: %v", err)
+	}
+
+	if result.Pushed != 0 {
+		t.Errorf("Pushed = %d, want 0 (nothing changed)", result.Pushed)
+	}
+	if patched {
+		t.Error("should not have sent PATCH when nothing changed")
+	}
+}
+
+func TestSetup(t *testing.T) {
+	store := openTestStore(t)
+
+	sn := makeSnippet("set00001", "Setup Test", "hello", "text", nil)
+	store.Create(sn)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/user":
+			json.NewEncoder(w).Encode(map[string]string{"login": "testuser"})
+		case r.Method == "POST" && r.URL.Path == "/gists":
+			w.WriteHeader(201)
+			json.NewEncoder(w).Encode(Gist{
+				ID:      "new-gist-id",
+				HTMLURL: "https://gist.github.com/new-gist-id",
+			})
+		case r.Method == "GET" && r.URL.Path == "/gists/new-gist-id":
+			json.NewEncoder(w).Encode(Gist{
+				ID: "new-gist-id",
+				Files: map[string]GistFile{
+					".snipt-meta.json": {Content: `{"version":1,"snippet_hashes":{}}`},
+				},
+			})
+		case r.Method == "PATCH" && r.URL.Path == "/gists/new-gist-id":
+			json.NewEncoder(w).Encode(Gist{ID: "new-gist-id"})
+		default:
+			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+
+	client := NewGistClient("test-token")
+	client.baseURL = srv.URL
+
+	cfg := &config.SyncConfig{}
+	engine := NewSyncEngine(store, client, cfg)
+
+	syncCfg, err := engine.Setup("test-token")
+	if err != nil {
+		t.Fatalf("Setup() error: %v", err)
+	}
+
+	if syncCfg.GistID != "new-gist-id" {
+		t.Errorf("GistID = %q, want %q", syncCfg.GistID, "new-gist-id")
+	}
+	if syncCfg.Username != "testuser" {
+		t.Errorf("Username = %q, want %q", syncCfg.Username, "testuser")
+	}
+	if syncCfg.Token != "test-token" {
+		t.Errorf("Token = %q, want %q", syncCfg.Token, "test-token")
+	}
+}
+
+func TestSync_BidirectionalMerge(t *testing.T) {
+	store := openTestStore(t)
+
+	localOnly := makeSnippet("loc00001", "Local Only", "local content", "go", nil)
+	localOnly.CreatedAt = time.Now().UTC()
+	localOnly.UpdatedAt = localOnly.CreatedAt
+	store.Create(localOnly)
+
+	remoteOnlyMD := ToFrontmatter(model.Snippet{
+		Title:    "Remote Only",
+		Language: "python",
+		Content:  "remote content",
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET":
+			json.NewEncoder(w).Encode(Gist{
+				ID: "test-gist",
+				Files: map[string]GistFile{
+					"remote-only.md":   {Content: remoteOnlyMD},
+					".snipt-meta.json": {Content: `{"version":1,"snippet_hashes":{}}`},
+				},
+			})
+		case r.Method == "PATCH":
+			json.NewEncoder(w).Encode(Gist{ID: "test-gist"})
+		}
+	}))
+	defer srv.Close()
+
+	client := NewGistClient("token")
+	client.baseURL = srv.URL
+
+	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	engine := NewSyncEngine(store, client, cfg)
+
+	result, err := engine.Sync()
+	if err != nil {
+		t.Fatalf("Sync() error: %v", err)
+	}
+
+	if result.Pulled != 1 {
+		t.Errorf("Pulled = %d, want 1", result.Pulled)
+	}
+
+	if result.Pushed != 1 {
+		t.Errorf("Pushed = %d, want 1", result.Pushed)
+	}
+
+	all, _ := store.List(db.ListOpts{Sort: "title"})
+	if len(all) != 2 {
+		t.Fatalf("DB snippet count = %d, want 2", len(all))
+	}
+}
