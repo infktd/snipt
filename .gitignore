@@ -1,5 +1,5 @@
 # Binary
-snipt
+/snipt
 /dist/
 
 # OS
@@ -12,4 +12,4 @@ src/frontend/package.json.md5
 
 # Wails
 src/frontend/src/wailsjs/
-src/cmd/snipt-gui/build/
+src/cmd/snipt/build/

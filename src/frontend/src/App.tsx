@@ -1,14 +1,16 @@
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { AppProvider, useAppState, useAppDispatch } from "./state/context";
 import { Sidebar } from "./components/Sidebar";
 import { DetailPane } from "./components/DetailPane";
 import { StatusBar } from "./components/StatusBar";
+import { FindPalette } from "./components/FindPalette";
 import { useDebounce } from "./hooks/useDebounce";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import type { SearchBarHandle } from "./components/SearchBar";
 import type { Snippet } from "./state/types";
 
 import {
+  GetMode,
   ListSnippets,
   SearchSnippets,
   CreateSnippet,
@@ -279,6 +281,18 @@ function AppContent() {
 }
 
 export default function App() {
+  const [mode, setMode] = useState<string | null>(null);
+
+  useEffect(() => {
+    GetMode()
+      .then(setMode)
+      .catch(() => setMode("manage"));
+  }, []);
+
+  if (mode === null) return null;
+
+  if (mode === "find") return <FindPalette />;
+
   return (
     <AppProvider>
       <AppContent />

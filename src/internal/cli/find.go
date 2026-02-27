@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/infktd/snipt/src/internal/db"
+	"github.com/infktd/snipt/src/internal/gui"
 	"github.com/infktd/snipt/src/internal/model"
 	"github.com/infktd/snipt/src/internal/tui/find"
 	"github.com/spf13/cobra"
@@ -12,6 +13,7 @@ import (
 
 func newFindCmd() *cobra.Command {
 	var (
+		pipe       bool
 		langFilter string
 		tagFilter  string
 		pinned     bool
@@ -21,15 +23,16 @@ func newFindCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "find [query]",
-		Short: "Fuzzy search snippets",
-		Long: `Fuzzy search snippets and copy the selected one to clipboard.
-
-By default, the selected snippet is copied to the system clipboard
-via OSC52 and the command exits silently. Use --stdout to print
-the content to stdout instead (useful for piping).`,
+		Short: "Quick-find a snippet",
+		Long: `Quick-find a snippet. Opens a floating GUI palette by default.
+Use --pipe/-p for terminal output (useful for piping).`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Load snippets from store with filters.
+			if !pipe {
+				return gui.LaunchGUI(store, "find")
+			}
+
+			// TUI pipe mode (existing behavior).
 			opts := db.ListOpts{
 				Language: langFilter,
 				Tag:      tagFilter,
@@ -43,13 +46,11 @@ the content to stdout instead (useful for piping).`,
 				return fmt.Errorf("load snippets: %w", err)
 			}
 
-			// Get initial query if provided.
 			initialQuery := ""
 			if len(args) == 1 {
 				initialQuery = args[0]
 			}
 
-			// Launch TUI. Clipboard copy happens inside via OSC52.
 			result, err := find.RunFind(snippets, initialQuery, idOnly, stdout)
 			if err != nil {
 				return fmt.Errorf("find: %w", err)
@@ -59,10 +60,8 @@ the content to stdout instead (useful for piping).`,
 				os.Exit(model.ExitInterrupted)
 			}
 
-			// Bump use count.
 			_ = store.IncrementUseCount(result.ID)
 
-			// Output based on flags.
 			if idOnly {
 				fmt.Fprintln(cmd.OutOrStdout(), result.ID)
 				return nil
@@ -73,11 +72,11 @@ the content to stdout instead (useful for piping).`,
 				return nil
 			}
 
-			// Default: silent. Clipboard was already set by the TUI.
 			return nil
 		},
 	}
 
+	cmd.Flags().BoolVarP(&pipe, "pipe", "p", false, "output to stdout (TUI mode)")
 	cmd.Flags().StringVar(&langFilter, "lang", "", "filter by language")
 	cmd.Flags().StringVar(&tagFilter, "tag", "", "filter by tag")
 	cmd.Flags().BoolVar(&pinned, "pinned", false, "filter pinned only")

@@ -11,11 +11,18 @@ import (
 type App struct {
 	ctx   context.Context
 	store *db.Store
+	mode  string
 }
 
 // NewApp creates a new App backed by the given store.
-func NewApp(store *db.Store) *App {
-	return &App{store: store}
+// mode is "manage" or "find".
+func NewApp(store *db.Store, mode string) *App {
+	return &App{store: store, mode: mode}
+}
+
+// GetMode returns the GUI mode ("manage" or "find").
+func (a *App) GetMode() string {
+	return a.mode
 }
 
 // Startup is called by Wails at application startup.
