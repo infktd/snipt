@@ -51,7 +51,7 @@ Use --pipe/-p for terminal output (useful for piping).`,
 				initialQuery = args[0]
 			}
 
-			result, err := find.RunFind(snippets, initialQuery, idOnly, stdout)
+			result, err := find.RunFind(snippets, initialQuery)
 			if err != nil {
 				return fmt.Errorf("find: %w", err)
 			}

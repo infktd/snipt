@@ -18,10 +18,6 @@ export function SearchSnippets(query: string) {
   return call("SearchSnippets", query);
 }
 
-export function GetSnippet(id: string) {
-  return call("GetSnippet", id);
-}
-
 export function CreateSnippet(snippet: any) {
   return call("CreateSnippet", snippet);
 }

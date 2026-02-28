@@ -48,14 +48,14 @@ func TestValidateToken_Invalid(t *testing.T) {
 
 func TestGetGist(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/gists/gist123" {
+		if r.URL.Path != "/gists/aa00bb11cc22dd33ee44" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		if r.Method != "GET" {
 			t.Errorf("unexpected method: %s", r.Method)
 		}
 		json.NewEncoder(w).Encode(Gist{
-			ID:          "gist123",
+			ID:          "aa00bb11cc22dd33ee44",
 			Description: "snipt-sync",
 			Files: map[string]GistFile{
 				"test.md": {Filename: "test.md", Content: "hello", Size: 5},
@@ -67,12 +67,12 @@ func TestGetGist(t *testing.T) {
 	client := NewGistClient("token")
 	client.baseURL = srv.URL
 
-	gist, err := client.GetGist("gist123")
+	gist, err := client.GetGist("aa00bb11cc22dd33ee44")
 	if err != nil {
 		t.Fatalf("GetGist() error: %v", err)
 	}
-	if gist.ID != "gist123" {
-		t.Errorf("ID = %q, want %q", gist.ID, "gist123")
+	if gist.ID != "aa00bb11cc22dd33ee44" {
+		t.Errorf("ID = %q, want %q", gist.ID, "aa00bb11cc22dd33ee44")
 	}
 	if len(gist.Files) != 1 {
 		t.Errorf("Files count = %d, want 1", len(gist.Files))
@@ -122,7 +122,7 @@ func TestCreateGist(t *testing.T) {
 
 func TestUpdateGist(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/gists/gist123" {
+		if r.URL.Path != "/gists/aa00bb11cc22dd33ee44" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		if r.Method != "PATCH" {
@@ -130,7 +130,7 @@ func TestUpdateGist(t *testing.T) {
 		}
 
 		json.NewEncoder(w).Encode(Gist{
-			ID: "gist123",
+			ID: "aa00bb11cc22dd33ee44",
 			Files: map[string]GistFile{
 				"updated.md": {Filename: "updated.md", Content: "new content"},
 			},
@@ -141,7 +141,7 @@ func TestUpdateGist(t *testing.T) {
 	client := NewGistClient("token")
 	client.baseURL = srv.URL
 
-	gist, err := client.UpdateGist("gist123", GistUpdate{
+	gist, err := client.UpdateGist("aa00bb11cc22dd33ee44", GistUpdate{
 		Files: map[string]*GistFile{
 			"updated.md": {Content: "new content"},
 		},
@@ -149,8 +149,8 @@ func TestUpdateGist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateGist() error: %v", err)
 	}
-	if gist.ID != "gist123" {
-		t.Errorf("ID = %q, want %q", gist.ID, "gist123")
+	if gist.ID != "aa00bb11cc22dd33ee44" {
+		t.Errorf("ID = %q, want %q", gist.ID, "aa00bb11cc22dd33ee44")
 	}
 }
 
@@ -164,7 +164,7 @@ func TestGetGist_NotFound(t *testing.T) {
 	client := NewGistClient("token")
 	client.baseURL = srv.URL
 
-	_, err := client.GetGist("nonexistent")
+	_, err := client.GetGist("ff00ff00ff00ff00ff00")
 	if err == nil {
 		t.Fatal("expected error for 404 response")
 	}

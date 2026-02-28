@@ -2,8 +2,6 @@ package db
 
 import "fmt"
 
-const currentSchemaVersion = 1
-
 // migrate runs schema migrations up to the current version.
 func (s *Store) migrate() error {
 	// Create the meta table to track schema version.

@@ -46,16 +46,16 @@ func TestPush_NewSnippets(t *testing.T) {
 	var patchPayload GistUpdate
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET" && r.URL.Path == "/gists/test-gist":
+		case r.Method == "GET" && r.URL.Path == "/gists/aabbccddee0011223344":
 			json.NewEncoder(w).Encode(Gist{
-				ID: "test-gist",
+				ID: "aabbccddee0011223344",
 				Files: map[string]GistFile{
 					".snipt-meta.json": {Content: `{"version":1,"snippet_hashes":{}}`},
 				},
 			})
-		case r.Method == "PATCH" && r.URL.Path == "/gists/test-gist":
+		case r.Method == "PATCH" && r.URL.Path == "/gists/aabbccddee0011223344":
 			json.NewDecoder(r.Body).Decode(&patchPayload)
-			json.NewEncoder(w).Encode(Gist{ID: "test-gist"})
+			json.NewEncoder(w).Encode(Gist{ID: "aabbccddee0011223344"})
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(404)
@@ -66,7 +66,7 @@ func TestPush_NewSnippets(t *testing.T) {
 	client := NewGistClient("token")
 	client.baseURL = srv.URL
 
-	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	cfg := &config.SyncConfig{GistID: "aabbccddee0011223344", Token: "token"}
 	engine := NewSyncEngine(store, client, cfg)
 
 	result, err := engine.Push()
@@ -100,7 +100,7 @@ func TestPull_NewRemoteSnippets(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(Gist{
-			ID: "test-gist",
+			ID: "aabbccddee0011223344",
 			Files: map[string]GistFile{
 				"remote-snippet.md":  {Content: remoteMD},
 				".snipt-meta.json": {Content: `{"version":1,"snippet_hashes":{}}`},
@@ -112,7 +112,7 @@ func TestPull_NewRemoteSnippets(t *testing.T) {
 	client := NewGistClient("token")
 	client.baseURL = srv.URL
 
-	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	cfg := &config.SyncConfig{GistID: "aabbccddee0011223344", Token: "token"}
 	engine := NewSyncEngine(store, client, cfg)
 
 	result, err := engine.Pull()
@@ -153,7 +153,7 @@ func TestPush_UnchangedSnippetsSkipped(t *testing.T) {
 		switch {
 		case r.Method == "GET":
 			json.NewEncoder(w).Encode(Gist{
-				ID: "test-gist",
+				ID: "aabbccddee0011223344",
 				Files: map[string]GistFile{
 					"unchanged.md":     {Content: ToFrontmatter(*sn)},
 					".snipt-meta.json": {Content: string(metaJSON)},
@@ -161,7 +161,7 @@ func TestPush_UnchangedSnippetsSkipped(t *testing.T) {
 			})
 		case r.Method == "PATCH":
 			patched = true
-			json.NewEncoder(w).Encode(Gist{ID: "test-gist"})
+			json.NewEncoder(w).Encode(Gist{ID: "aabbccddee0011223344"})
 		}
 	}))
 	defer srv.Close()
@@ -169,7 +169,7 @@ func TestPush_UnchangedSnippetsSkipped(t *testing.T) {
 	client := NewGistClient("token")
 	client.baseURL = srv.URL
 
-	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	cfg := &config.SyncConfig{GistID: "aabbccddee0011223344", Token: "token"}
 	engine := NewSyncEngine(store, client, cfg)
 
 	result, err := engine.Push()
@@ -198,18 +198,18 @@ func TestSetup(t *testing.T) {
 		case r.Method == "POST" && r.URL.Path == "/gists":
 			w.WriteHeader(201)
 			json.NewEncoder(w).Encode(Gist{
-				ID:      "new-gist-id",
-				HTMLURL: "https://gist.github.com/new-gist-id",
+				ID:      "bb00cc11dd22ee33ff44",
+				HTMLURL: "https://gist.github.com/bb00cc11dd22ee33ff44",
 			})
-		case r.Method == "GET" && r.URL.Path == "/gists/new-gist-id":
+		case r.Method == "GET" && r.URL.Path == "/gists/bb00cc11dd22ee33ff44":
 			json.NewEncoder(w).Encode(Gist{
-				ID: "new-gist-id",
+				ID: "bb00cc11dd22ee33ff44",
 				Files: map[string]GistFile{
 					".snipt-meta.json": {Content: `{"version":1,"snippet_hashes":{}}`},
 				},
 			})
-		case r.Method == "PATCH" && r.URL.Path == "/gists/new-gist-id":
-			json.NewEncoder(w).Encode(Gist{ID: "new-gist-id"})
+		case r.Method == "PATCH" && r.URL.Path == "/gists/bb00cc11dd22ee33ff44":
+			json.NewEncoder(w).Encode(Gist{ID: "bb00cc11dd22ee33ff44"})
 		default:
 			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(404)
@@ -228,8 +228,8 @@ func TestSetup(t *testing.T) {
 		t.Fatalf("Setup() error: %v", err)
 	}
 
-	if syncCfg.GistID != "new-gist-id" {
-		t.Errorf("GistID = %q, want %q", syncCfg.GistID, "new-gist-id")
+	if syncCfg.GistID != "bb00cc11dd22ee33ff44" {
+		t.Errorf("GistID = %q, want %q", syncCfg.GistID, "bb00cc11dd22ee33ff44")
 	}
 	if syncCfg.Username != "testuser" {
 		t.Errorf("Username = %q, want %q", syncCfg.Username, "testuser")
@@ -270,7 +270,7 @@ func TestPull_SkipsLocallyDeletedSnippets(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(Gist{
-			ID: "test-gist",
+			ID: "aabbccddee0011223344",
 			Files: map[string]GistFile{
 				deletedSlug:        {Content: deletedMD},
 				"genuinely-new.md": {Content: newRemoteMD},
@@ -283,7 +283,7 @@ func TestPull_SkipsLocallyDeletedSnippets(t *testing.T) {
 	client := NewGistClient("token")
 	client.baseURL = srv.URL
 
-	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	cfg := &config.SyncConfig{GistID: "aabbccddee0011223344", Token: "token"}
 	engine := NewSyncEngine(store, client, cfg)
 
 	result, err := engine.Pull()
@@ -323,14 +323,14 @@ func TestSync_BidirectionalMerge(t *testing.T) {
 		switch {
 		case r.Method == "GET":
 			json.NewEncoder(w).Encode(Gist{
-				ID: "test-gist",
+				ID: "aabbccddee0011223344",
 				Files: map[string]GistFile{
 					"remote-only.md":   {Content: remoteOnlyMD},
 					".snipt-meta.json": {Content: `{"version":1,"snippet_hashes":{}}`},
 				},
 			})
 		case r.Method == "PATCH":
-			json.NewEncoder(w).Encode(Gist{ID: "test-gist"})
+			json.NewEncoder(w).Encode(Gist{ID: "aabbccddee0011223344"})
 		}
 	}))
 	defer srv.Close()
@@ -338,7 +338,7 @@ func TestSync_BidirectionalMerge(t *testing.T) {
 	client := NewGistClient("token")
 	client.baseURL = srv.URL
 
-	cfg := &config.SyncConfig{GistID: "test-gist", Token: "token"}
+	cfg := &config.SyncConfig{GistID: "aabbccddee0011223344", Token: "token"}
 	engine := NewSyncEngine(store, client, cfg)
 
 	result, err := engine.Sync()

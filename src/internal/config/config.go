@@ -78,7 +78,7 @@ func Load() (*Config, error) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, err
 		}
-		if err := os.WriteFile(path, []byte(defaultConfig), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(defaultConfig), 0o600); err != nil {
 			return nil, err
 		}
 		return cfg, nil
@@ -106,7 +106,7 @@ func (c *Config) Save() error {
 	if err := enc.Encode(c); err != nil {
 		return err
 	}
-	return os.WriteFile(path, buf.Bytes(), 0o644)
+	return os.WriteFile(path, buf.Bytes(), 0o600)
 }
 
 // ResolveEditor returns the editor to use, following the chain:

@@ -12,6 +12,7 @@ import {
   SyncDisconnect,
   IsSyncConfigured,
 } from "../bindings/snippetservice";
+import type { SyncStatusInfo } from "../state/types";
 import { Browser } from "@wailsio/runtime";
 
 interface Config {
@@ -44,7 +45,7 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
   const [dbPath, setDbPath] = useState("");
   const [version, setVersion] = useState("");
   const [syncConfigured, setSyncConfigured] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatusInfo | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [token, setToken] = useState("");
   const [settingUp, setSettingUp] = useState(false);
@@ -124,9 +125,13 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
   };
 
   const handleDisconnect = async () => {
-    await SyncDisconnect();
-    setSyncConfigured(false);
-    setSyncStatus(null);
+    try {
+      await SyncDisconnect();
+      setSyncConfigured(false);
+      setSyncStatus(null);
+    } catch (err) {
+      console.error("Disconnect failed:", err);
+    }
   };
 
   if (!config) return null;

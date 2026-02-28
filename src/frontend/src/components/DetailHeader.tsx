@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { C, BODY, MONO } from "../styles/colors";
+import { langColors } from "../utils/snippetDisplay";
 
 interface DetailHeaderProps {
   title: string;
@@ -7,29 +8,6 @@ interface DetailHeaderProps {
   editMode: boolean;
   onTitleChange: (title: string) => void;
 }
-
-const langColors: Record<string, string> = {
-  go: C.sky,
-  javascript: C.yellow,
-  js: C.yellow,
-  typescript: C.blue,
-  ts: C.blue,
-  python: C.green,
-  py: C.green,
-  bash: C.green,
-  sh: C.green,
-  sql: C.yellow,
-  html: C.red,
-  css: C.sky,
-  json: C.peach,
-  markdown: C.teal,
-  md: C.teal,
-  rust: C.peach,
-  ruby: C.red,
-  yaml: C.peach,
-  toml: C.lavender,
-  nix: C.mauve,
-};
 
 export function DetailHeader({
   title,

@@ -15,14 +15,16 @@ echo "Building frontend..."
 # Build Go binary
 echo "Building Go binary..."
 mkdir -p "$APP/Contents/MacOS"
-go build -o "$APP/Contents/MacOS/snipt" ./src/cmd/snipt
+VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
+go build -ldflags "-s -w -X main.version=$VERSION" -o "$APP/Contents/MacOS/snipt" ./src/cmd/snipt
 
 # Copy Info.plist
 cp "$ROOT/build/appicon/Info.plist" "$APP/Contents/Info.plist"
 
 # Generate .icns from source PNG
 echo "Generating app icon..."
-ICONSET=$(mktemp -d)/snipt.iconset
+TMPDIR_ICON=$(mktemp -d)
+ICONSET="$TMPDIR_ICON/snipt.iconset"
 mkdir -p "$ICONSET"
 
 sips -z   16   16 "$ICON_SRC" --out "$ICONSET/icon_16x16.png"      > /dev/null
@@ -38,5 +40,6 @@ sips -z 1024 1024 "$ICON_SRC" --out "$ICONSET/icon_512x512@2x.png" > /dev/null
 
 mkdir -p "$APP/Contents/Resources"
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/iconfile.icns"
+rm -rf "$TMPDIR_ICON"
 
 echo "Done: $APP"

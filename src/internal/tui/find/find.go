@@ -26,17 +26,14 @@ type FindModel struct {
 	resultList  components.ResultList
 	allSnippets []model.Snippet
 	filtered    []components.ResultItem
-	selected    *model.Snippet // final selection (nil if cancelled)
-	cancelled   bool
-	copied      bool // whether "copied" feedback was shown
-	width       int
-	height      int
-	idOnly      bool
-	clipOutput  bool
+	selected  *model.Snippet // final selection (nil if cancelled)
+	cancelled bool
+	width     int
+	height    int
 }
 
 // NewFindModel creates a new find palette model.
-func NewFindModel(snippets []model.Snippet, initialQuery string, idOnly, clipOutput bool) FindModel {
+func NewFindModel(snippets []model.Snippet, initialQuery string) FindModel {
 	ti := textinput.New()
 	ti.Placeholder = "Search snippets..."
 	ti.CharLimit = 120
@@ -72,8 +69,6 @@ func NewFindModel(snippets []model.Snippet, initialQuery string, idOnly, clipOut
 		allSnippets: snippets,
 		width:       findDefaultWidth,
 		height:      findDefaultHeight,
-		idOnly:      idOnly,
-		clipOutput:  clipOutput,
 	}
 
 	// Initialize the result list with available height for results.
@@ -451,8 +446,8 @@ func (m FindModel) View() tea.View {
 }
 
 // RunFind launches the find palette TUI and returns the selected snippet, or nil if cancelled.
-func RunFind(snippets []model.Snippet, initialQuery string, idOnly, clipOutput bool) (*model.Snippet, error) {
-	m := NewFindModel(snippets, initialQuery, idOnly, clipOutput)
+func RunFind(snippets []model.Snippet, initialQuery string) (*model.Snippet, error) {
+	m := NewFindModel(snippets, initialQuery)
 	p := tea.NewProgram(m)
 
 	final, err := p.Run()

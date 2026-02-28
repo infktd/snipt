@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/infktd/snipt/src/internal/model"
 )
@@ -30,10 +31,26 @@ func (s *Store) Search(query string) ([]model.SearchResult, error) {
 	if len(terms) == 0 {
 		return nil, nil
 	}
-	for i, t := range terms {
-		terms[i] = `"` + strings.ReplaceAll(t, `"`, `""`) + `"` + "*"
+	var cleanTerms []string
+	for _, t := range terms {
+		// Strip control characters (including null bytes) to prevent
+		// FTS5 parser manipulation.
+		var b strings.Builder
+		for _, r := range t {
+			if !unicode.IsControl(r) {
+				b.WriteRune(r)
+			}
+		}
+		cleaned := b.String()
+		if cleaned == "" {
+			continue
+		}
+		cleanTerms = append(cleanTerms, `"`+strings.ReplaceAll(cleaned, `"`, `""`)+`"`+"*")
 	}
-	ftsQuery := strings.Join(terms, " ")
+	if len(cleanTerms) == 0 {
+		return nil, nil
+	}
+	ftsQuery := strings.Join(cleanTerms, " ")
 
 	rows, err := s.db.Query(`
 		SELECT s.id, s.title, s.content, s.language, s.description, s.source,
@@ -95,14 +112,16 @@ func (s *Store) searchByTag(prefix string) ([]model.SearchResult, error) {
 		return nil, nil
 	}
 
+	// Escape LIKE metacharacters so % and _ are matched literally.
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.ToLower(prefix))
 	rows, err := s.db.Query(`
 		SELECT DISTINCT s.id, s.title, s.content, s.language, s.description, s.source,
 		       s.pinned, s.use_count, s.created_at, s.updated_at
 		FROM tags t
 		JOIN snippets s ON s.id = t.snippet_id
-		WHERE t.tag LIKE ? || '%'
+		WHERE t.tag LIKE ? || '%' ESCAPE '\'
 		ORDER BY s.title
-	`, strings.ToLower(prefix))
+	`, escaped)
 	if err != nil {
 		return nil, fmt.Errorf("tag search: %w", err)
 	}

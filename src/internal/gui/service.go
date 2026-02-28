@@ -143,7 +143,12 @@ func (s *SnippetService) GetStats() (*model.Stats, error) {
 }
 
 func (s *SnippetService) GetConfig() (*config.Config, error) {
-	return config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	cfg.Sync.Token = "" // redact token before sending to frontend
+	return cfg, nil
 }
 
 func (s *SnippetService) UpdateConfig(cfg config.Config) error {

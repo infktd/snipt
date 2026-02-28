@@ -32,6 +32,3 @@ export async function loadLanguage(lang: string): Promise<LanguageSupport | null
   return loader();
 }
 
-export function isLanguageSupported(lang: string): boolean {
-  return lang.toLowerCase() in languageMap;
-}

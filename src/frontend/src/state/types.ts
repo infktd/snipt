@@ -51,8 +51,7 @@ export interface SyncStatusInfo {
 
 export type DetailView =
   | { kind: "snippet" }
-  | { kind: "settings" }
-  | { kind: "empty" };
+  | { kind: "settings" };
 
 export interface AppState {
   snippets: Snippet[];

@@ -42,38 +42,6 @@ func RenderTagBadge(tag string, fg color.Color, bg color.Color) string {
 	return badgeStyle.Render(" #" + tag + " ")
 }
 
-// RenderFuzzyTitle renders the title with matched characters highlighted.
-func RenderFuzzyTitle(title string, indices []int, selected bool) string {
-	baseColor := ColorTextSub
-	if selected {
-		baseColor = ColorText
-	}
-
-	if len(indices) == 0 {
-		style := lipgloss.NewStyle().Foreground(baseColor)
-		return style.Render(title)
-	}
-
-	matchSet := make(map[int]bool, len(indices))
-	for _, idx := range indices {
-		matchSet[idx] = true
-	}
-
-	matchStyle := lipgloss.NewStyle().Foreground(ColorPink).Bold(true)
-	normalStyle := lipgloss.NewStyle().Foreground(baseColor)
-
-	var out strings.Builder
-	for i, ch := range title {
-		if matchSet[i] {
-			out.WriteString(matchStyle.Render(string(ch)))
-		} else {
-			out.WriteString(normalStyle.Render(string(ch)))
-		}
-	}
-
-	return out.String()
-}
-
 // RenderFuzzyTitleWithBg renders the title with matched characters highlighted
 // and a specific background color applied to every character.
 func RenderFuzzyTitleWithBg(title string, indices []int, selected bool, bg color.Color) string {

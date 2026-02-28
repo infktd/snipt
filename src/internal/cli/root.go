@@ -11,7 +11,6 @@ import (
 
 var (
 	dbPath     string
-	noColor    bool
 	store      *db.Store
 	cfg        *config.Config
 	appVersion string
@@ -54,7 +53,6 @@ func NewRootCmd(version string) *cobra.Command {
 	}
 
 	root.PersistentFlags().StringVar(&dbPath, "db", "", "path to database file")
-	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable color output")
 
 	root.AddCommand(newConfigCmd())
 	root.AddCommand(newAddCmd())

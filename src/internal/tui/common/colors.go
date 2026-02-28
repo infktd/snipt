@@ -10,9 +10,8 @@ import (
 var (
 	ColorBg          = lipgloss.Color("#24273a")
 	ColorBgSurface   = lipgloss.Color("#363a4f")
-	ColorBgOverlay   = lipgloss.Color("#494d64")
-	ColorBgHighlight = lipgloss.Color("#363a4f")
-	ColorBgSelected  = lipgloss.Color("#494d64")
+	ColorBgOverlay  = lipgloss.Color("#494d64")
+	ColorBgSelected = lipgloss.Color("#494d64")
 	ColorBorder      = lipgloss.Color("#494d64")
 	ColorBorderDim   = lipgloss.Color("#363a4f")
 	ColorBorderFocus = lipgloss.Color("#c6a0f6")

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"time"
 )
 
 const defaultBaseURL = "https://api.github.com"
@@ -22,7 +24,7 @@ func NewGistClient(token string) *GistClient {
 	return &GistClient{
 		token:   token,
 		baseURL: defaultBaseURL,
-		http:    &http.Client{},
+		http:    &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -46,6 +48,16 @@ type GistFile struct {
 type GistUpdate struct {
 	Description string               `json:"description,omitempty"`
 	Files       map[string]*GistFile `json:"files"`
+}
+
+var validGistID = regexp.MustCompile(`^[a-f0-9]{20,32}$`)
+
+// ValidateGistID checks that a Gist ID is a valid hexadecimal string.
+func ValidateGistID(id string) error {
+	if !validGistID.MatchString(id) {
+		return fmt.Errorf("invalid gist ID: %q", id)
+	}
+	return nil
 }
 
 func (c *GistClient) do(method, path string, body interface{}) (*http.Response, error) {
@@ -86,12 +98,17 @@ func (c *GistClient) ValidateToken() (string, error) {
 	var user struct {
 		Login string `json:"login"`
 	}
-	json.NewDecoder(resp.Body).Decode(&user)
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return "", fmt.Errorf("decode user response: %w", err)
+	}
 	return user.Login, nil
 }
 
 // GetGist retrieves a Gist by ID.
 func (c *GistClient) GetGist(id string) (*Gist, error) {
+	if err := ValidateGistID(id); err != nil {
+		return nil, err
+	}
 	resp, err := c.do("GET", "/gists/"+id, nil)
 	if err != nil {
 		return nil, err
@@ -104,7 +121,9 @@ func (c *GistClient) GetGist(id string) (*Gist, error) {
 	}
 
 	var gist Gist
-	json.NewDecoder(resp.Body).Decode(&gist)
+	if err := json.NewDecoder(resp.Body).Decode(&gist); err != nil {
+		return nil, fmt.Errorf("decode gist response: %w", err)
+	}
 	return &gist, nil
 }
 
@@ -128,12 +147,17 @@ func (c *GistClient) CreateGist(description string, files map[string]GistFile, p
 	}
 
 	var gist Gist
-	json.NewDecoder(resp.Body).Decode(&gist)
+	if err := json.NewDecoder(resp.Body).Decode(&gist); err != nil {
+		return nil, fmt.Errorf("decode gist response: %w", err)
+	}
 	return &gist, nil
 }
 
 // UpdateGist updates an existing Gist.
 func (c *GistClient) UpdateGist(id string, update GistUpdate) (*Gist, error) {
+	if err := ValidateGistID(id); err != nil {
+		return nil, err
+	}
 	resp, err := c.do("PATCH", "/gists/"+id, update)
 	if err != nil {
 		return nil, err
@@ -146,6 +170,8 @@ func (c *GistClient) UpdateGist(id string, update GistUpdate) (*Gist, error) {
 	}
 
 	var gist Gist
-	json.NewDecoder(resp.Body).Decode(&gist)
+	if err := json.NewDecoder(resp.Body).Decode(&gist); err != nil {
+		return nil, fmt.Errorf("decode gist response: %w", err)
+	}
 	return &gist, nil
 }
