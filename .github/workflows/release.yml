@@ -67,6 +67,9 @@ jobs:
           sips -z 1024 1024 build/appicon/icon.png --out "$ICONSET/icon_512x512@2x.png" > /dev/null
           iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/iconfile.icns"
 
+          # Ad-hoc code sign (free, reduces Gatekeeper friction)
+          codesign --force --deep --sign - "$APP"
+
       - name: Create zip
         run: zip -r snipt-macos-${{ matrix.arch }}.zip snipt.app
 
