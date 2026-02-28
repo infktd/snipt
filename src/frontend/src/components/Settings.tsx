@@ -11,6 +11,8 @@ import {
   SyncStatus,
   SyncDisconnect,
   IsSyncConfigured,
+  GetLaunchAtLogin,
+  SetLaunchAtLogin,
 } from "../bindings/snippetservice";
 import type { SyncStatusInfo } from "../state/types";
 import { Browser } from "@wailsio/runtime";
@@ -51,6 +53,7 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
   const [settingUp, setSettingUp] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [launchAtLogin, setLaunchAtLogin] = useState(false);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -59,6 +62,10 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
     } catch (err) {
       console.error("Failed to load config:", err);
     }
+  }, []);
+
+  useEffect(() => {
+    GetLaunchAtLogin().then(setLaunchAtLogin).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -194,6 +201,18 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
         <Row label="Global Hotkey" value={config.General?.Hotkey || "cmd+shift+s"} muted />
         <Row label="Editor" value={config.Editor || "system default"} muted />
         <Row label="Theme" value="Catppuccin Mocha" muted />
+        <ToggleRow
+          label="Launch at login"
+          value={launchAtLogin}
+          onChange={async (v) => {
+            try {
+              await SetLaunchAtLogin(v);
+              setLaunchAtLogin(v);
+            } catch (err) {
+              console.error("Failed to set launch at login:", err);
+            }
+          }}
+        />
 
         {/* FIND */}
         <SectionLabel>Find</SectionLabel>

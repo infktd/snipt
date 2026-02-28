@@ -81,3 +81,11 @@ export function SyncDisconnect() {
 export function IsSyncConfigured(): Promise<boolean> {
   return call("IsSyncConfigured");
 }
+
+export function GetLaunchAtLogin(): Promise<boolean> {
+  return call("GetLaunchAtLogin");
+}
+
+export function SetLaunchAtLogin(enabled: boolean): Promise<void> {
+  return call("SetLaunchAtLogin", enabled);
+}

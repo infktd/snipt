@@ -34,3 +34,4 @@ build/bin/
 .env*
 *.pem
 *.key
+homebrew-tap/

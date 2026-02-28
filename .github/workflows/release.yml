@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd src/frontend && npm ci
+
+      - name: Build frontend
+        run: cd src/frontend && npm run build
+
+      - name: Build Go binary
+        env:
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '0'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -ldflags "-s -w -X main.version=$VERSION" \
+            -o snipt ./src/cmd/snipt
+
+      - name: Create app bundle
+        run: |
+          APP="snipt.app"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources"
+          mv snipt "$APP/Contents/MacOS/snipt"
+          cp build/appicon/Info.plist "$APP/Contents/Info.plist"
+
+          # Generate .icns from source PNG
+          ICONSET=$(mktemp -d)/snipt.iconset
+          mkdir -p "$ICONSET"
+          sips -z   16   16 build/appicon/icon.png --out "$ICONSET/icon_16x16.png"      > /dev/null
+          sips -z   32   32 build/appicon/icon.png --out "$ICONSET/icon_16x16@2x.png"   > /dev/null
+          sips -z   32   32 build/appicon/icon.png --out "$ICONSET/icon_32x32.png"      > /dev/null
+          sips -z   64   64 build/appicon/icon.png --out "$ICONSET/icon_32x32@2x.png"   > /dev/null
+          sips -z  128  128 build/appicon/icon.png --out "$ICONSET/icon_128x128.png"    > /dev/null
+          sips -z  256  256 build/appicon/icon.png --out "$ICONSET/icon_128x128@2x.png" > /dev/null
+          sips -z  256  256 build/appicon/icon.png --out "$ICONSET/icon_256x256.png"    > /dev/null
+          sips -z  512  512 build/appicon/icon.png --out "$ICONSET/icon_256x256@2x.png" > /dev/null
+          sips -z  512  512 build/appicon/icon.png --out "$ICONSET/icon_512x512.png"    > /dev/null
+          sips -z 1024 1024 build/appicon/icon.png --out "$ICONSET/icon_512x512@2x.png" > /dev/null
+          iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/iconfile.icns"
+
+      - name: Create zip
+        run: zip -r snipt-macos-${{ matrix.arch }}.zip snipt.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: snipt-macos-${{ matrix.arch }}.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd src/frontend && npm ci
+
+      - name: Build frontend
+        run: cd src/frontend && npm run build
+
+      - name: Build Linux binary
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '0'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -ldflags "-s -w -X main.version=$VERSION" \
+            -o snipt ./src/cmd/snipt
+
+      - name: Create tarball
+        run: tar -czf snipt-linux-${{ matrix.arch }}.tar.gz snipt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: snipt-linux-${{ matrix.arch }}.tar.gz
+
+  release:
+    needs: [build-macos, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find dist/ -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec cp {} release/ \;
+
+      - name: Generate checksums
+        run: |
+          cd release
+          shasum -a 256 * > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+      - name: Update Homebrew tap
+        if: ${{ secrets.TAP_GITHUB_TOKEN != '' }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          repository: infktd/homebrew-tap
+          event-type: release
+          client-payload: '{"tag": "${{ github.ref_name }}"}'

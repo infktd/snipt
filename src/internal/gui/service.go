@@ -3,6 +3,9 @@ package gui
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
+	"runtime"
 	gosync "sync"
 	"time"
 
@@ -242,4 +245,112 @@ func (s *SnippetService) IsSyncConfigured() (bool, error) {
 		return false, err
 	}
 	return appCfg.Sync.GistID != "", nil
+}
+
+// GetLaunchAtLogin returns whether the app is configured to launch at login.
+func (s *SnippetService) GetLaunchAtLogin() (bool, error) {
+	p, err := autoStartPath()
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(p)
+	return err == nil, nil
+}
+
+// SetLaunchAtLogin enables or disables launching the app at login.
+func (s *SnippetService) SetLaunchAtLogin(enabled bool) error {
+	switch runtime.GOOS {
+	case "darwin":
+		return setAutoStartDarwin(enabled)
+	case "linux":
+		return setAutoStartLinux(enabled)
+	default:
+		return fmt.Errorf("launch at login not supported on %s", runtime.GOOS)
+	}
+}
+
+func autoStartPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "LaunchAgents", "com.infktd.snipt.plist"), nil
+	case "linux":
+		return filepath.Join(home, ".config", "autostart", "snipt.desktop"), nil
+	default:
+		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+}
+
+func setAutoStartDarwin(enabled bool) error {
+	p, err := autoStartPath()
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.infktd.snipt</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>%s</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>`, execPath)
+
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(p, []byte(plist), 0644)
+}
+
+func setAutoStartLinux(enabled bool) error {
+	p, err := autoStartPath()
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	desktop := fmt.Sprintf(`[Desktop Entry]
+Type=Application
+Name=snipt
+Exec=%s
+Hidden=false
+X-GNOME-Autostart-enabled=true
+`, execPath)
+
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(p, []byte(desktop), 0644)
 }
