@@ -38,6 +38,7 @@ jobs:
       - name: Build Go binary
         env:
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '1'
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           go build -ldflags "-s -w -X main.version=$VERSION" \
@@ -77,13 +78,6 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - arch: amd64
-            cc: gcc
-          - arch: arm64
-            cc: aarch64-linux-gnu-gcc
     steps:
       - uses: actions/checkout@v4
 
@@ -107,36 +101,23 @@ jobs:
 
       - name: Install Linux dependencies
         run: |
-          sudo dpkg --add-architecture arm64 || true
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu \
-              libgtk-3-dev:arm64 libwebkit2gtk-4.1-dev:arm64 \
-              pkg-config || true
-          fi
 
       - name: Build Linux binary
-        env:
-          GOARCH: ${{ matrix.arch }}
-          CC: ${{ matrix.cc }}
-          CGO_ENABLED: '1'
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-          fi
           go build -ldflags "-s -w -X main.version=$VERSION" \
             -o snipt ./src/cmd/snipt
 
       - name: Create tarball
-        run: tar -czf snipt-linux-${{ matrix.arch }}.tar.gz snipt
+        run: tar -czf snipt-linux-amd64.tar.gz snipt
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-${{ matrix.arch }}
-          path: snipt-linux-${{ matrix.arch }}.tar.gz
+          name: linux-amd64
+          path: snipt-linux-amd64.tar.gz
 
   release:
     needs: [build-macos, build-linux]
