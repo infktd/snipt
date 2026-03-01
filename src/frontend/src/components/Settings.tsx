@@ -21,9 +21,6 @@ interface Config {
   Editor: string;
   DefaultLanguage: string;
   Theme: string;
-  General: {
-    Hotkey: string;
-  };
   Find: {
     Sort: string;
     CopyToClipboard: boolean;
@@ -198,7 +195,6 @@ export function Settings({ onSortChanged, onClose }: SettingsProps) {
         {/* GENERAL */}
         <SectionLabel>General</SectionLabel>
         <Divider />
-        <Row label="Global Hotkey" value={config.General?.Hotkey || "cmd+shift+s"} muted />
         <Row label="Editor" value={config.Editor || "system default"} muted />
         <Row label="Theme" value="Catppuccin Mocha" muted />
         <ToggleRow

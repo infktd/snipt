@@ -5,6 +5,7 @@ import { DetailPane } from "./components/DetailPane";
 import { StatusBar } from "./components/StatusBar";
 import { FindPalette } from "./components/FindPalette";
 import { Settings } from "./components/Settings";
+import { AboutDialog } from "./components/AboutDialog";
 import { useDebounce } from "./hooks/useDebounce";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import type { SearchBarHandle } from "./components/SearchBar";
@@ -295,6 +296,8 @@ function AppContent() {
         searching={state.searchQuery.length > 0}
         editMode={state.editMode}
       />
+
+      <AboutDialog />
     </div>
   );
 }

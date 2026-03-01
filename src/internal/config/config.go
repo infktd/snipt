@@ -14,14 +14,8 @@ type Config struct {
 	DefaultLanguage string `toml:"default_language"`
 	Theme           string `toml:"theme"`
 
-	General GeneralConfig `toml:"general"`
-	Find    FindConfig    `toml:"find"`
+	Find FindConfig `toml:"find"`
 	Sync    SyncConfig    `toml:"sync"`
-}
-
-// GeneralConfig holds general app settings.
-type GeneralConfig struct {
-	Hotkey string `toml:"hotkey"`
 }
 
 // FindConfig holds find palette preferences.
@@ -43,9 +37,6 @@ const defaultConfig = `editor = ""
 default_language = "text"
 theme = "catppuccin-mocha"
 
-[general]
-hotkey = "cmd+shift+s"
-
 [find]
 preview = false
 sort = "recent"
@@ -57,9 +48,6 @@ func DefaultConfig() *Config {
 	return &Config{
 		DefaultLanguage: "text",
 		Theme:           "catppuccin-mocha",
-		General: GeneralConfig{
-			Hotkey: "cmd+shift+s",
-		},
 		Find: FindConfig{
 			Sort:            "recent",
 			CopyToClipboard: true,

@@ -124,9 +124,6 @@ editor = "nvim"
 default_language = "go"
 theme = "catppuccin-mocha"
 
-[general]
-hotkey = "cmd+shift+s"
-
 [find]
 preview = true
 sort = "alpha"
@@ -138,9 +135,6 @@ copy_to_clipboard = false
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	if cfg.General.Hotkey != "cmd+shift+s" {
-		t.Errorf("expected hotkey=cmd+shift+s, got %q", cfg.General.Hotkey)
-	}
 	if cfg.Find.Preview != true {
 		t.Error("expected find.preview=true")
 	}
@@ -154,9 +148,6 @@ copy_to_clipboard = false
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.General.Hotkey != "cmd+shift+s" {
-		t.Errorf("expected default hotkey=cmd+shift+s, got %q", cfg.General.Hotkey)
-	}
 	if cfg.Find.Sort != "recent" {
 		t.Errorf("expected default sort=recent, got %q", cfg.Find.Sort)
 	}

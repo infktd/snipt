@@ -155,11 +155,9 @@ func LaunchGUI(store *db.Store, version string) error {
 	sniptMenu := appMenu.AddSubmenu("snipt")
 
 	sniptMenu.Add("About snipt").OnClick(func(ctx *application.Context) {
-		d := app.Dialog.Info().
-			SetTitle("snipt").
-			SetMessage("Version " + version + "\n\nA snippet manager for the command line and beyond.")
-		d.AddButton("OK")
-		d.Show()
+		manageWindow.Show()
+		manageWindow.Focus()
+		app.Event.Emit("open-about")
 	})
 
 	sniptMenu.AddSeparator()
