@@ -163,8 +163,8 @@ jobs:
             -o snipt.exe ./src/cmd/snipt
 
       - name: Create zip
-        shell: bash
-        run: zip snipt-windows-amd64.zip snipt.exe
+        shell: pwsh
+        run: Compress-Archive -Path snipt.exe -DestinationPath snipt-windows-amd64.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
