@@ -149,16 +149,15 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          update: true
           install: mingw-w64-x86_64-gcc
 
       - name: Build Windows binary
         env:
           CGO_ENABLED: '1'
           GOARCH: amd64
-          CC: C:\msys64\mingw64\bin\gcc.exe
         shell: bash
         run: |
+          export PATH="/c/msys64/mingw64/bin:$PATH"
           VERSION="${GITHUB_REF_NAME#v}"
           go build -ldflags "-s -w -X main.version=$VERSION" \
             -o snipt.exe ./src/cmd/snipt
