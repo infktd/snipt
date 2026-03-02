@@ -122,8 +122,59 @@ jobs:
           name: linux-amd64
           path: snipt-linux-amd64.tar.gz
 
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd src/frontend && npm ci
+
+      - name: Build frontend
+        run: cd src/frontend && npm run build
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-gcc
+
+      - name: Build Windows binary
+        env:
+          CGO_ENABLED: '1'
+          GOARCH: amd64
+          CC: C:\msys64\mingw64\bin\gcc.exe
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -ldflags "-s -w -X main.version=$VERSION" \
+            -o snipt.exe ./src/cmd/snipt
+
+      - name: Create zip
+        shell: bash
+        run: zip snipt-windows-amd64.zip snipt.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: snipt-windows-amd64.zip
+
   release:
-    needs: [build-macos, build-linux]
+    needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
